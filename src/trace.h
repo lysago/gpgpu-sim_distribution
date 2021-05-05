@@ -32,6 +32,9 @@
 #ifndef __TRACE_H__
 #define __TRACE_H__
 
+#define TRACING_ON 1
+// #define TRACING_ON 1
+
 namespace Trace {
 
 #define TS_TUP_BEGIN(X) enum X {

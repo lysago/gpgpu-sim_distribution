@@ -392,10 +392,16 @@ class core_config {
 // bounded stack that implements simt reconvergence using pdom mechanism from
 // MICRO'07 paper
 const unsigned MAX_WARP_SIZE = 32;
+const unsigned MAX_WARP_COUNT = 32;
 typedef std::bitset<MAX_WARP_SIZE> active_mask_t;
 #define MAX_WARP_SIZE_SIMT_STACK MAX_WARP_SIZE
+#define MAX_BLOCK_SIZE_TBC_STACK MAX_WARP_COUNT*MAX_WARP_COUNT
 typedef std::bitset<MAX_WARP_SIZE_SIMT_STACK> simt_mask_t;
+typedef std::bitset<MAX_BLOCK_SIZE_TBC_STACK> tbc_mask_t;
+typedef std::bitset<MAX_WARP_COUNT> warp_mask_t;
 typedef std::vector<address_type> addr_vector_t;
+typedef std::vector<unsigned> addr_vector_t;
+typedef std::vector<unsigned> thread_vector_t;
 
 class simt_stack {
  public:
@@ -403,13 +409,15 @@ class simt_stack {
 
   void reset();
   void launch(address_type start_pc, const simt_mask_t &active_mask);
-  void update(simt_mask_t &thread_done, addr_vector_t &next_pc,
-              address_type recvg_pc, op_type next_inst_op,
-              unsigned next_inst_size, address_type next_inst_pc);
+  void update(simt_mask_t thread_done, simt_mask_t next_active_mask, 
+              address_type next_pc, address_type recvg_pc, 
+              op_type now_inst_op, unsigned now_inst_size, address_type now_inst_pc);
 
   const simt_mask_t &get_active_mask() const;
   void get_pdom_stack_top_info(unsigned *pc, unsigned *rpc) const;
   unsigned get_rp() const;
+  void print_test(simt_mask_t now_mask);
+  void print_all_test();
   void print(FILE *fp) const;
   void resume(char *fname);
   void print_checkpoint(FILE *fout) const;
@@ -437,6 +445,66 @@ class simt_stack {
   };
 
   std::deque<simt_stack_entry> m_stack;
+
+  class gpgpu_sim *m_gpu;
+};
+
+class tbc_stack {
+ public:
+  tbc_stack(unsigned warp_count, unsigned warp_size, class gpgpu_sim *gpu);
+
+  void reset();
+  void launch(address_type start_pc, const tbc_mask_t &active_mask);
+  int update(simt_mask_t &thread_done, addr_vector_t &next_pc,
+              address_type recvg_pc, op_type now_inst_op,
+              unsigned now_inst_size, address_type now_inst_pc,
+              thread_vector_t &real_thread, unsigned warp_id,
+              simt_stack **simt_stacks);
+  int get_pos(address_type next_pc);
+  void print_all_test();
+  int get_active_wcnt(const tbc_mask_t &active_mask);
+
+  int compactWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
+      unsigned now_inst_size, address_type now_inst_pc);
+  int recvgWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
+      unsigned now_inst_size, address_type now_inst_pc);
+  
+  enum stack_entry_type { STACK_ENTRY_TYPE_NORMAL = 0, STACK_ENTRY_TYPE_CALL };
+
+  void stack_push(address_type next_pc, tbc_mask_t active_mask, unsigned long long branch_div_cycle,
+  stack_entry_type stack_type);
+  bool stack_update(bool op, unsigned pos, address_type next_pc, tbc_mask_t active_mask, unsigned long long branch_div_cycle,
+  stack_entry_type stack_type);
+
+  std::map<address_type, simt_mask_t> getDivPaths(simt_mask_t &thread_done,
+                                                addr_vector_t &next_pc, simt_mask_t &top_active_mask);
+                                          
+
+ protected:
+  unsigned m_warp_count;
+  unsigned m_warp_size;
+
+
+  struct tbc_stack_entry {
+    address_type m_pc;
+    unsigned int m_calldepth;
+    tbc_mask_t m_active_mask;
+    address_type m_recvg_pc;
+    unsigned long long m_branch_div_cycle;
+    stack_entry_type m_type;
+    unsigned m_wcnt;
+    tbc_stack_entry()
+        : m_pc(-1),
+          m_calldepth(0),
+          m_active_mask(),
+          m_recvg_pc(-1),
+          m_branch_div_cycle(0),
+          m_type(STACK_ENTRY_TYPE_NORMAL),
+          m_wcnt(0){};
+  };
+
+  std::deque<tbc_stack_entry> m_stack;
+  unsigned m_tos_pos;
 
   class gpgpu_sim *m_gpu;
 };
@@ -1103,7 +1171,11 @@ class warp_inst_t : public inst_t {
     for (int i = (int)m_config->warp_size - 1; i >= 0; i--)
       fprintf(fp, "%c", ((m_warp_active_mask[i]) ? '1' : '0'));
   }
-  bool active(unsigned thread) const { return m_warp_active_mask.test(thread); }
+  // 设置掩码，在运行时屏蔽非pc的thread
+  bool active(unsigned thread) const { 
+    assert(thread < m_warp_active_mask.size());
+    return m_warp_active_mask.test(thread); 
+  }
   unsigned active_count() const { return m_warp_active_mask.count(); }
   unsigned issued_count() const {
     assert(m_empty == false);
@@ -1151,6 +1223,42 @@ class warp_inst_t : public inst_t {
   unsigned get_uid() const { return m_uid; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
+  
+  struct per_thread_info {
+    per_thread_info() {
+      for (unsigned i = 0; i < MAX_ACCESSES_PER_INSN_PER_THREAD; i++)
+        memreqaddr[i] = 0;
+    }
+    dram_callback_t callback;
+    new_addr_type
+        memreqaddr[MAX_ACCESSES_PER_INSN_PER_THREAD];  // effective address,
+                                                       // upto 8 different
+                                                       // requests (to support
+                                                       // 32B access in 8 chunks
+                                                       // of 4B each)
+  };
+  /************* DONE **************************/
+  per_thread_info get_scalar_thread(unsigned lane_id) { return m_per_scalar_thread[lane_id]; }
+  void set_scalar_thread(int lane_id, per_thread_info tnow) { 
+    if(!m_per_scalar_thread_valid){
+      m_per_scalar_thread.resize(m_config->warp_size);
+      m_per_scalar_thread_valid = true;
+    }
+    m_per_scalar_thread[lane_id] = tnow; 
+  }
+  void set_active_mask_lane(unsigned lane_id, bool active_mask){
+    m_warp_active_mask[lane_id] = active_mask;
+  }
+  void swap_lane( warp_inst_t* B, unsigned lane_id ){
+    per_thread_info ta = this->get_scalar_thread(lane_id);
+    per_thread_info tb = B->get_scalar_thread(lane_id);
+    B->set_scalar_thread(lane_id, ta);
+    this->set_scalar_thread(lane_id, tb);
+
+    bool flag = this->active(lane_id);
+    this->set_active_mask_lane(lane_id, B->active(lane_id));
+    B->set_active_mask_lane(lane_id, flag);
+  }
 
  protected:
   unsigned m_uid;
@@ -1169,20 +1277,6 @@ class warp_inst_t : public inst_t {
   active_mask_t
       m_warp_issued_mask;  // active mask at issue (prior to predication test)
                            // -- for instruction counting
-
-  struct per_thread_info {
-    per_thread_info() {
-      for (unsigned i = 0; i < MAX_ACCESSES_PER_INSN_PER_THREAD; i++)
-        memreqaddr[i] = 0;
-    }
-    dram_callback_t callback;
-    new_addr_type
-        memreqaddr[MAX_ACCESSES_PER_INSN_PER_THREAD];  // effective address,
-                                                       // upto 8 different
-                                                       // requests (to support
-                                                       // 32B access in 8 chunks
-                                                       // of 4B each)
-  };
   bool m_per_scalar_thread_valid;
   std::vector<per_thread_info> m_per_scalar_thread;
   bool m_mem_accesses_created;
@@ -1219,6 +1313,7 @@ class core_t {
       : m_gpu(gpu),
         m_kernel(kernel),
         m_simt_stack(NULL),
+        m_tbc_stack(NULL),
         m_thread(NULL),
         m_warp_size(warp_size) {
     m_warp_count = threads_per_shader / m_warp_size;
@@ -1231,12 +1326,14 @@ class core_t {
     m_thread = (ptx_thread_info **)calloc(m_warp_count * m_warp_size,
                                           sizeof(ptx_thread_info *));
     initilizeSIMTStack(m_warp_count, m_warp_size);
+    initilizeTBCStack(m_warp_count, m_warp_size);
 
     for (unsigned i = 0; i < MAX_CTA_PER_SHADER; i++) {
       for (unsigned j = 0; j < MAX_BARRIERS_PER_CTA; j++) {
         reduction_storage[i][j] = 0;
       }
     }
+    m_warp_mask.reset();
   }
   virtual ~core_t() { free(m_thread); }
   virtual void warp_exit(unsigned warp_id) = 0;
@@ -1246,11 +1343,19 @@ class core_t {
   class gpgpu_sim *get_gpu() {
     return m_gpu;
   }
+  bool test_warp_waiting(unsigned warp_id){ 
+    assert(warp_id < m_warp_mask.size());
+    return m_warp_mask.test(warp_id); 
+  }
+  void set_warp_waiting(unsigned warp_id){ m_warp_mask.set(warp_id); }
+  void clear_warp_waiting(){ m_warp_mask.reset(); }
   void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId = (unsigned)-1);
   bool ptx_thread_done(unsigned hw_thread_id) const;
   virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst);
   void initilizeSIMTStack(unsigned warp_count, unsigned warps_size);
   void deleteSIMTStack();
+  void initilizeTBCStack(unsigned warp_count, unsigned warp_size);
+  void deleteTBCStack();
   warp_inst_t getExecuteWarp(unsigned warpId);
   void get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                unsigned *rpc) const;
@@ -1276,10 +1381,12 @@ class core_t {
   class gpgpu_sim *m_gpu;
   kernel_info_t *m_kernel;
   simt_stack **m_simt_stack;  // pdom based reconvergence context for each warp
+  tbc_stack *m_tbc_stack;  // pdom based reconvergence context for each warp
   class ptx_thread_info **m_thread;
   unsigned m_warp_size;
   unsigned m_warp_count;
   unsigned reduction_storage[MAX_CTA_PER_SHADER][MAX_BARRIERS_PER_CTA];
+  warp_mask_t m_warp_mask;
 };
 
 // register that can hold multiple instructions.

@@ -49,6 +49,7 @@ void mem_access_t::init(gpgpu_context *ctx) {
 void warp_inst_t::issue(const active_mask_t &mask, unsigned warp_id,
                         unsigned long long cycle, int dynamic_warp_id,
                         int sch_id) {
+  printf("<TEST>::Here change the m_warp_active_mask, issue %d!\n", warp_id);
   m_warp_active_mask = mask;
   m_warp_issued_mask = mask;
   m_uid = ++(m_config->gpgpu_ctx->warp_inst_sm_next_uid);
@@ -231,17 +232,21 @@ void warp_inst_t::clear_active(const active_mask_t &inactive) {
   active_mask_t test = m_warp_active_mask;
   test &= inactive;
   assert(test == inactive);  // verify threads being disabled were active
+  printf("<TEST>::Here clear the m_warp_active_mask, %d\n", warp_id());
   m_warp_active_mask &= ~inactive;
 }
 
 void warp_inst_t::set_not_active(unsigned lane_id) {
+  printf("<TEST>::Here reset the m_warp_active_mask, warp %d, lane %d\n", warp_id(), lane_id);
   m_warp_active_mask.reset(lane_id);
 }
 
 void warp_inst_t::set_active(const active_mask_t &active) {
+  printf("<TEST>::Here set m_warp_active_mask %d\n", warp_id());
   m_warp_active_mask = active;
   if (m_isatomic) {
     for (unsigned i = 0; i < m_config->warp_size; i++) {
+      assert(i < m_warp_active_mask.size());
       if (!m_warp_active_mask.test(i)) {
         m_per_scalar_thread[i].callback.function = NULL;
         m_per_scalar_thread[i].callback.instruction = NULL;
@@ -252,6 +257,7 @@ void warp_inst_t::set_active(const active_mask_t &active) {
 }
 
 void warp_inst_t::do_atomic(bool forceDo) {
+  printf("<TEST>::do_atomic %d\n", warp_id());
   do_atomic(m_warp_active_mask, forceDo);
 }
 
@@ -259,6 +265,7 @@ void warp_inst_t::do_atomic(const active_mask_t &access_mask, bool forceDo) {
   assert(m_isatomic && (!m_empty || forceDo));
   if (!should_do_atomic) return;
   for (unsigned i = 0; i < m_config->warp_size; i++) {
+    assert(i < access_mask.size());
     if (access_mask.test(i)) {
       dram_callback_t &cb = m_per_scalar_thread[i].callback;
       if (cb.thread) cb.function(cb.instruction, cb.thread);
@@ -269,6 +276,7 @@ void warp_inst_t::do_atomic(const active_mask_t &access_mask, bool forceDo) {
 void warp_inst_t::broadcast_barrier_reduction(
     const active_mask_t &access_mask) {
   for (unsigned i = 0; i < m_config->warp_size; i++) {
+    assert(i < access_mask.size());
     if (access_mask.test(i)) {
       dram_callback_t &cb = m_per_scalar_thread[i].callback;
       if (cb.thread) {
@@ -921,16 +929,62 @@ simt_stack::simt_stack(unsigned wid, unsigned warpSize, class gpgpu_sim *gpu) {
   reset();
 }
 
+void simt_stack::print_test(simt_mask_t now_mask){
+  for(int i = 0; i < MAX_WARP_SIZE_SIMT_STACK; ++i){
+    printf("\t%d", i);
+  }
+  printf("\n");
+  for(int i = 0; i < MAX_WARP_SIZE_SIMT_STACK; ++i){
+    assert(i < now_mask.size());
+    printf("\t%d", now_mask.test(i));
+  }
+  printf("\n");
+}
+
+void simt_stack::print_all_test(){
+  for (unsigned k = 0; k < m_stack.size(); k++) {
+    simt_stack_entry stack_entry = m_stack[k];
+    if (k == 0) {
+      printf("w%02d %1u ", m_warp_id, k);
+    } else {
+      printf("    %1u ", k);
+    }
+    for (unsigned j = 0; j < m_warp_size; j++){
+      assert(j < stack_entry.m_active_mask.size());
+      printf("%c", (stack_entry.m_active_mask.test(j) ? '1' : '0'));
+    }
+    printf(" pc: 0x%03x", stack_entry.m_pc);
+    if (stack_entry.m_recvg_pc == (unsigned)-1) {
+      printf(" rp: ---- tp: %s cd: %2u ",
+              (stack_entry.m_type == STACK_ENTRY_TYPE_CALL ? "C" : "N"),
+              stack_entry.m_calldepth);
+    } else {
+      printf(" rp: %4u tp: %s cd: %2u ", stack_entry.m_recvg_pc,
+              (stack_entry.m_type == STACK_ENTRY_TYPE_CALL ? "C" : "N"),
+              stack_entry.m_calldepth);
+    }
+    if (stack_entry.m_branch_div_cycle != 0) {
+      printf(" bd@%6u ", (unsigned)stack_entry.m_branch_div_cycle);
+    } else {
+      printf(" ");
+    }
+    printf("\n");
+  }
+}
+
 void simt_stack::reset() { m_stack.clear(); }
 
 void simt_stack::launch(address_type start_pc, const simt_mask_t &active_mask) {
   reset();
+  // printf("<TEST>::\t(simt_stack)\t[launch]\twarp %d, start_pc %d \n", m_warp_id, start_pc);
+  // print_test(active_mask);
   simt_stack_entry new_stack_entry;
   new_stack_entry.m_pc = start_pc;
   new_stack_entry.m_calldepth = 1;
   new_stack_entry.m_active_mask = active_mask;
   new_stack_entry.m_type = STACK_ENTRY_TYPE_NORMAL;
   m_stack.push_back(new_stack_entry);
+  printf("\tstack_size:%d\n", m_stack.size());
 }
 
 void simt_stack::resume(char *fname) {
@@ -1030,149 +1084,71 @@ void simt_stack::print_checkpoint(FILE *fout) const {
   }
 }
 
-void simt_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
-                        address_type recvg_pc, op_type next_inst_op,
-                        unsigned next_inst_size, address_type next_inst_pc) {
-  assert(m_stack.size() > 0);
+// 更改后的simt栈只保存call的内容
+//    由于分支通过TBC消除，作为普通指令执行即可，将第一个分支指令作为全部来更新
+//    active mask只通过线程压缩操作时进行更新，在此处无效
 
-  assert(next_pc.size() == m_warp_size);
+// a: [back_][a]
+// a: [back_a]
 
+// call:  [back_][call_entry]
+// call_a: [back_][call_entry_a]
+// ret:  [back_call]
+void simt_stack::update(simt_mask_t thread_done, simt_mask_t next_active_mask, 
+                        address_type next_pc, address_type recvg_pc, 
+                        op_type now_inst_op, unsigned now_inst_size, address_type now_inst_pc) {
+  assert(m_stack.size() > 0);             // 至少有一个bace栈执行当前指令
+
+  // 当前栈顶，类型可能是一般指令或者call指令（其中pc会被新内容覆盖，但类型不会变）
   simt_mask_t top_active_mask = m_stack.back().m_active_mask;
-  address_type top_recvg_pc = m_stack.back().m_recvg_pc;
   address_type top_pc =
       m_stack.back().m_pc;  // the pc of the instruction just executed
   stack_entry_type top_type = m_stack.back().m_type;
-  assert(top_pc == next_inst_pc);
+  assert(top_pc == now_inst_pc);
   assert(top_active_mask.any());
 
-  const address_type null_pc = -1;
-  bool warp_diverged = false;
-  address_type new_recvg_pc = null_pc;
-  unsigned num_divergent_paths = 0;
+  // printf("<TEST>::\t(simt_stack)\t[update]\twarp %d, recvg_pc %d \n", m_warp_id, recvg_pc);
+  // print_test(top_active_mask);
 
-  std::map<address_type, simt_mask_t> divergent_paths;
-  while (top_active_mask.any()) {
-    // extract a group of threads with the same next PC among the active threads
-    // in the warp
-    address_type tmp_next_pc = null_pc;
-    simt_mask_t tmp_active_mask;
-    for (int i = m_warp_size - 1; i >= 0; i--) {
-      if (top_active_mask.test(i)) {  // is this thread active?
-        if (thread_done.test(i)) {
-          top_active_mask.reset(i);  // remove completed thread from active mask
-        } else if (tmp_next_pc == null_pc) {
-          tmp_next_pc = next_pc[i];
-          tmp_active_mask.set(i);
-          top_active_mask.reset(i);
-        } else if (tmp_next_pc == next_pc[i]) {
-          tmp_active_mask.set(i);
-          top_active_mask.reset(i);
-        }
-      }
-    }
+  address_type not_taken_pc = now_inst_pc + now_inst_size;
+  simt_mask_t tmp_active_mask = next_active_mask&(~thread_done);
+  // HANDLE THE SPECIAL CASES FIRST
+  if (now_inst_op == CALL_OPS) {
+    printf("!!!call\n");
+    // Since call is not a divergent instruction, all threads should have
+    // executed a call instruction
+    // 对于call指令，push call entry以便返回时更新pc值
 
-    if (tmp_next_pc == null_pc) {
-      assert(!top_active_mask.any());  // all threads done
-      continue;
-    }
+    simt_stack_entry new_stack_entry;
+    new_stack_entry.m_pc = next_pc;
+    new_stack_entry.m_active_mask = tmp_active_mask;
+    new_stack_entry.m_branch_div_cycle =
+        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
+    new_stack_entry.m_type = STACK_ENTRY_TYPE_CALL;
+    m_stack.push_back(new_stack_entry);
+    // printf("<TEST>::(simt_stack)[update] warp %d, next_pc %d \n", m_warp_id, tmp_next_pc);
+    // print_test(tmp_active_mask);
+    return;
+    // 对于call的ret指令，与对应的call entry对照返回
+  } else if (now_inst_op == RET_OPS && top_type == STACK_ENTRY_TYPE_CALL) {
+    // pop the CALL Entry
+    printf("!!!ret\n");
+    m_stack.pop_back();
 
-    divergent_paths[tmp_next_pc] = tmp_active_mask;
-    num_divergent_paths++;
-  }
-
-  address_type not_taken_pc = next_inst_pc + next_inst_size;
-  assert(num_divergent_paths <= 2);
-  for (unsigned i = 0; i < num_divergent_paths; i++) {
-    address_type tmp_next_pc = null_pc;
-    simt_mask_t tmp_active_mask;
-    tmp_active_mask.reset();
-    if (divergent_paths.find(not_taken_pc) != divergent_paths.end()) {
-      assert(i == 0);
-      tmp_next_pc = not_taken_pc;
-      tmp_active_mask = divergent_paths[tmp_next_pc];
-      divergent_paths.erase(tmp_next_pc);
-    } else {
-      std::map<address_type, simt_mask_t>::iterator it =
-          divergent_paths.begin();
-      tmp_next_pc = it->first;
-      tmp_active_mask = divergent_paths[tmp_next_pc];
-      divergent_paths.erase(tmp_next_pc);
-    }
-
-    // HANDLE THE SPECIAL CASES FIRST
-    if (next_inst_op == CALL_OPS) {
-      // Since call is not a divergent instruction, all threads should have
-      // executed a call instruction
-      assert(num_divergent_paths == 1);
-
-      simt_stack_entry new_stack_entry;
-      new_stack_entry.m_pc = tmp_next_pc;
-      new_stack_entry.m_active_mask = tmp_active_mask;
-      new_stack_entry.m_branch_div_cycle =
-          m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
-      new_stack_entry.m_type = STACK_ENTRY_TYPE_CALL;
-      m_stack.push_back(new_stack_entry);
-      return;
-    } else if (next_inst_op == RET_OPS && top_type == STACK_ENTRY_TYPE_CALL) {
-      // pop the CALL Entry
-      assert(num_divergent_paths == 1);
-      m_stack.pop_back();
-
-      assert(m_stack.size() > 0);
-      m_stack.back().m_pc = tmp_next_pc;  // set the PC of the stack top entry
-                                          // to return PC from  the call stack;
-      // Check if the New top of the stack is reconverging
-      if (tmp_next_pc == m_stack.back().m_recvg_pc &&
-          m_stack.back().m_type != STACK_ENTRY_TYPE_CALL) {
-        assert(m_stack.back().m_type == STACK_ENTRY_TYPE_NORMAL);
-        m_stack.pop_back();
-      }
-      return;
-    }
-
-    // discard the new entry if its PC matches with reconvergence PC
-    // that automatically reconverges the entry
-    // If the top stack entry is CALL, dont reconverge.
-    if (tmp_next_pc == top_recvg_pc && (top_type != STACK_ENTRY_TYPE_CALL))
-      continue;
-
-    // this new entry is not converging
-    // if this entry does not include thread from the warp, divergence occurs
-    if ((num_divergent_paths > 1) && !warp_diverged) {
-      warp_diverged = true;
-      // modify the existing top entry into a reconvergence entry in the pdom
-      // stack
-      new_recvg_pc = recvg_pc;
-      if (new_recvg_pc != top_recvg_pc) {
-        m_stack.back().m_pc = new_recvg_pc;
-        m_stack.back().m_branch_div_cycle =
-            m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
-
-        m_stack.push_back(simt_stack_entry());
-      }
-    }
-
-    // discard the new entry if its PC matches with reconvergence PC
-    if (warp_diverged && tmp_next_pc == new_recvg_pc) continue;
-
-    // update the current top of pdom stack
-    m_stack.back().m_pc = tmp_next_pc;
+    assert(m_stack.size() > 0);
+    m_stack.back().m_pc = next_pc;  // set the PC of the stack top entry
+                                        // to return PC from  the call stack;
     m_stack.back().m_active_mask = tmp_active_mask;
-    if (warp_diverged) {
-      m_stack.back().m_calldepth = 0;
-      m_stack.back().m_recvg_pc = new_recvg_pc;
-    } else {
-      m_stack.back().m_recvg_pc = top_recvg_pc;
-    }
-
-    m_stack.push_back(simt_stack_entry());
+    return;
   }
+
+  // 更新栈顶为当前指令的内容
+  // update the current top of pdom stack
+  printf("testAAA %d\n", next_pc);
+  m_stack.back().m_pc = next_pc;
+  m_stack.back().m_active_mask = tmp_active_mask;
+
   assert(m_stack.size() > 0);
-  m_stack.pop_back();
-
-  if (warp_diverged) {
-    m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
-  }
 }
 
 void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId) {
@@ -1193,11 +1169,30 @@ bool core_t::ptx_thread_done(unsigned hw_thread_id) const {
           m_thread[hw_thread_id]->is_done());
 }
 
+thread_vector_t get_real_thread(unsigned warpId){
+  thread_vector_t now_thread;
+  for(int i = 0; i < MAX_WARP_SIZE; ++i){
+    now_thread.push_back(warpId*MAX_WARP_SIZE + i);
+  }
+  return now_thread;
+}
+
+address_type get_pc(simt_mask_t &thread_done, simt_mask_t simt_stack, addr_vector_t &next_pc){
+  for(int i = 0; i < next_pc.size(); ++i){
+    if(!thread_done.test(i) && simt_stack.test(i))
+      return next_pc[i];
+  }
+  return (unsigned)-1;
+}
+
 void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
   simt_mask_t thread_done;
   addr_vector_t next_pc;
   unsigned wtid = warpId * m_warp_size;
+  // 判断线程是否运行完毕
+  printf("\n");
   for (unsigned i = 0; i < m_warp_size; i++) {
+    //
     if (ptx_thread_done(wtid + i)) {
       thread_done.set(i);
       next_pc.push_back((address_type)-1);
@@ -1206,9 +1201,27 @@ void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
         inst->reconvergence_pc = get_return_pc(m_thread[wtid + i]);
       next_pc.push_back(m_thread[wtid + i]->get_pc());
     }
+    printf(" %d", next_pc[i]);
   }
-  m_simt_stack[warpId]->update(thread_done, next_pc, inst->reconvergence_pc,
-                               inst->op, inst->isize, inst->pc);
+  printf("\n");
+  // TBC栈内存储分支指令相关内容,如果该指令为分支，则进行warp压缩操作
+  thread_vector_t real_thread = get_real_thread(warpId);
+  int compacted = m_tbc_stack->update(thread_done, next_pc, inst->reconvergence_pc, inst->op, inst->isize, inst->pc,
+                      real_thread ,warpId, m_simt_stack);
+  printf("compacted %d\n", compacted);
+  if(compacted == -1){
+      // SIMT栈内存储call相关栈内容，
+    //  其中遇到分支指令时，直接push第一个可行pc的内容，直到warp压缩操作时进行修正
+    address_type next_pc_one = get_pc(thread_done, m_simt_stack[warpId]->get_active_mask(), next_pc);
+    m_simt_stack[warpId]->update(thread_done, m_simt_stack[warpId]->get_active_mask(),
+                                next_pc_one, inst->reconvergence_pc,
+                                inst->op, inst->isize, inst->pc);                    
+  }else if(compacted == 2){
+    m_warp_mask.set(warpId);
+  }else if(compacted == 1){
+    m_warp_mask.reset();
+  }
+  printf("  mask:%c\n", m_warp_mask.test(warpId)?'1':'0');
 }
 
 //! Get the warp to be executed using the data taken form the SIMT stack
@@ -1216,6 +1229,7 @@ warp_inst_t core_t::getExecuteWarp(unsigned warpId) {
   unsigned pc, rpc;
   m_simt_stack[warpId]->get_pdom_stack_top_info(&pc, &rpc);
   warp_inst_t wi = *(m_gpu->gpgpu_ctx->ptx_fetch_inst(pc));
+  printf("<TEST>::getExecuteWarp %d\n", warpId);
   wi.set_active(m_simt_stack[warpId]->get_active_mask());
   return wi;
 }
@@ -1239,4 +1253,388 @@ void core_t::initilizeSIMTStack(unsigned warp_count, unsigned warp_size) {
 void core_t::get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                      unsigned *rpc) const {
   m_simt_stack[warpId]->get_pdom_stack_top_info(pc, rpc);
+}
+
+tbc_stack::tbc_stack(unsigned warp_count, unsigned warp_size, class gpgpu_sim *gpu) {
+  m_warp_count = warp_count;
+  m_warp_size = warp_size;
+  m_gpu = gpu;
+  m_tos_pos = -1;
+  reset();
+}
+
+void tbc_stack::reset() { m_stack.clear(); }
+
+int tbc_stack::get_active_wcnt(const tbc_mask_t &active_mask){
+  int count = 0;
+  for(int i = 0 ; i < m_warp_count; ++i){
+    int flag = 0;
+    for(int j = 0; j < m_warp_size; ++j){
+      if(active_mask.test(i*m_warp_size + j))
+        flag = 1;
+    }
+    if(flag) count++;
+  }
+  return count;
+}
+
+// 初始设置
+void tbc_stack::launch(address_type start_pc, const tbc_mask_t &active_mask) {
+  reset();
+  // printf("<TEST>::\t(simt_stack)\t[launch]\twarp %d, start_pc %d \n", m_warp_id, start_pc);
+  // print_test(active_mask);
+  // 无分支时，栈底为不断更改的普通指令（只1个）
+  tbc_stack_entry new_stack_entry;
+  new_stack_entry.m_pc = start_pc;
+  new_stack_entry.m_calldepth = 1;
+  new_stack_entry.m_active_mask = active_mask;
+  new_stack_entry.m_type = STACK_ENTRY_TYPE_NORMAL;
+  new_stack_entry.m_wcnt = get_active_wcnt(active_mask);
+  m_stack.push_back(new_stack_entry);
+  m_tos_pos = 0;
+}
+
+void tbc_stack::stack_push(address_type next_pc, tbc_mask_t active_mask, unsigned long long branch_div_cycle,
+  stack_entry_type stack_type) {
+  tbc_stack_entry new_stack_entry;
+  new_stack_entry.m_pc = next_pc;
+  new_stack_entry.m_active_mask = active_mask;
+  new_stack_entry.m_branch_div_cycle = branch_div_cycle;
+  new_stack_entry.m_type = stack_type;
+  new_stack_entry.m_wcnt = 0;
+  m_stack.push_back(new_stack_entry);
+}
+
+// op: 1(+) 0(-) 主要进行active mask的更新
+bool tbc_stack::stack_update(bool op, unsigned pos, address_type next_pc, tbc_mask_t active_mask, unsigned long long branch_div_cycle,
+  stack_entry_type stack_type) {
+  assert(pos < m_stack.size());
+  assert(m_stack[pos].m_pc == next_pc);
+  assert(m_stack[pos].m_type == stack_type);
+  
+  if(op == true){
+    assert((m_stack[pos].m_active_mask & active_mask).none());
+    m_stack[pos].m_active_mask = m_stack[pos].m_active_mask | active_mask;
+    m_stack[pos].m_branch_div_cycle = branch_div_cycle;
+    return true;
+  }
+  else{
+    assert((m_stack[pos].m_active_mask & active_mask) == active_mask);
+    assert(pos == m_stack.size() - 1);
+    m_stack[pos].m_active_mask = m_stack[pos].m_active_mask & (~active_mask);
+    if(m_stack[pos].m_active_mask.none()) {
+      m_stack.erase(m_stack.begin()+pos);
+      m_tos_pos = m_stack.size() - 1;
+      return true;
+    }
+    return false;
+  }
+}
+
+simt_mask_t tbc_mask_convert_simt(thread_vector_t real_thread, tbc_mask_t tbc_active_mask){
+  simt_mask_t active_mask;
+  active_mask.reset();
+  for(int i = 0; i < real_thread.size(); ++i){
+    int tid = real_thread[i];
+    assert(tid < tbc_active_mask.size());
+    if(tbc_active_mask.test(tid)){
+      active_mask.set(i);
+    }
+  }
+  return active_mask;
+}
+
+tbc_mask_t simt_mask_convert_tbc(thread_vector_t real_thread, simt_mask_t active_mask){
+  tbc_mask_t tbc_active_mask;
+  tbc_active_mask.reset();
+  for(int i = 0; i < real_thread.size(); ++i){
+    int tid = real_thread[i];
+    assert(tid < tbc_active_mask.size());
+    if(active_mask.test(i)){
+      tbc_active_mask.set(tid);
+    }
+  }
+  return tbc_active_mask;
+}
+
+std::map<address_type, simt_mask_t> tbc_stack::getDivPaths(simt_mask_t &thread_done,
+                                                addr_vector_t &next_pc, simt_mask_t &top_active_mask){
+  assert(top_active_mask.any());
+  const address_type null_pc = -1;
+
+  std::map<address_type, simt_mask_t> divergent_paths;
+  while (top_active_mask.any()) {
+    // 设置第一个可行next PC的active mask
+    // extract a group of threads with the same next PC among the active threads
+    // in the warp
+    address_type tmp_next_pc = null_pc;
+    simt_mask_t tmp_active_mask;
+    for (int i = m_warp_size - 1; i >= 0; i--) {
+      assert(i < top_active_mask.size());
+      if (top_active_mask.test(i)) {  // is this thread active?
+        if (thread_done.test(i)) {  // 判断线程运行结束
+          top_active_mask.reset(i);  // remove completed thread from active mask
+        } else if (tmp_next_pc == null_pc) {
+          tmp_next_pc = next_pc[i];
+          tmp_active_mask.set(i);
+          top_active_mask.reset(i);
+        } else if (tmp_next_pc == next_pc[i]) {
+          tmp_active_mask.set(i);
+          top_active_mask.reset(i);
+        }
+      }
+    }
+
+    // 所有线程分支完成，直接退出
+    if (tmp_next_pc == null_pc) {
+      assert(!top_active_mask.any());  // all threads done
+      continue;
+    }
+
+    // 添加分支指令信息
+    divergent_paths[tmp_next_pc] = tmp_active_mask;
+  }
+  return divergent_paths;
+}
+
+// 根据栈顶active_mask信息更新simt栈
+int tbc_stack::compactWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
+                           unsigned now_inst_size, address_type now_inst_pc){
+  tbc_mask_t now_tbc_mask = m_stack.back().m_active_mask;
+  address_type now_next_pc = m_stack.back().m_pc;
+  address_type now_recvg_pc = m_stack.back().m_recvg_pc;
+  int count = 0;
+  for(int i = 0; i < m_warp_count; ++i){
+    thread_vector_t now_thread = get_real_thread(i);
+    simt_mask_t now_simt_mask = tbc_mask_convert_simt(now_thread, now_tbc_mask);
+    /*
+    printf("TBC:: compact %d\n\t", i);
+    for(int j = 0; j < now_simt_mask.size(); ++j){
+      printf("%c", now_simt_mask.test(j)?'1':'0');
+    }
+    printf("\n");
+    */
+    if(now_simt_mask.none()) {
+      continue;
+    }
+    count++;
+    simt_stacks[i]->update(thread_done, now_simt_mask, now_next_pc, now_recvg_pc,now_inst_op,now_inst_size,now_inst_pc);
+  }
+  return count;
+}
+
+int tbc_stack::recvgWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
+                           unsigned now_inst_size, address_type now_inst_pc){
+  tbc_mask_t now_tbc_mask = m_stack.back().m_active_mask;
+  address_type now_next_pc = m_stack.back().m_pc;
+  address_type now_recvg_pc = m_stack.back().m_recvg_pc;
+  int count = 0;
+  for(int i = 0; i < m_warp_count; ++i){
+    thread_vector_t now_thread = get_real_thread(i);
+    simt_mask_t now_simt_mask = tbc_mask_convert_simt(now_thread, now_tbc_mask);
+    if(now_simt_mask.none()) continue;
+    count++;
+    simt_stacks[i]->update(thread_done, now_simt_mask, now_next_pc, now_recvg_pc,now_inst_op,now_inst_size,now_inst_pc);
+  }
+  return count;
+}
+
+// 只对于分支和重汇聚项进行tbc操作
+// 每个warp对应一个tos，指向当前分支指令
+// a->b->d->f
+//  ->c->e->|
+// div: [back_]
+// div: [div_f][back_b][back_c]
+// div: [div_f][back_d][back_d]
+// div: [div_f]
+/**********************
+* 当遇到分支指令时，
+*   第一个warp：将tbc栈顶指令更改为重汇聚指令，pop进各个分支 栈顶Wcnt--
+*   其余warp：更新各个分支的thread信息，栈顶Wcnt--
+*   最后一个warp：更新thread、Wcnt
+*     将栈顶更改为目前栈顶，并压缩该指令的warp
+*
+* 由于只处理分支指令，所以只在分支/重汇聚时更新
+***********************/
+
+int tbc_stack::get_pos(address_type next_pc){
+  for(int i = m_tos_pos + 1; i < m_stack.size(); ++i){
+    if(m_stack[i].m_pc == next_pc) return i;
+  }
+  return -1;
+}
+
+int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
+                        address_type recvg_pc, op_type now_inst_op,
+                        unsigned now_inst_size, address_type now_inst_pc,
+                        thread_vector_t &real_thread, unsigned warp_id,
+                        simt_stack **simt_stacks) {
+  unsigned now_tos_pos = m_tos_pos;
+  
+  assert(m_stack.size() > 0);
+  assert(now_tos_pos < m_stack.size());
+  assert(next_pc.size() == m_warp_size);
+
+  // 当前指向的栈顶（不一定是当前运行指令，是当前warp各自串行的第一条指令）
+  tbc_mask_t top_tbc_active_mask = m_stack[now_tos_pos].m_active_mask;
+  simt_mask_t top_active_mask = tbc_mask_convert_simt(real_thread, top_tbc_active_mask);
+  address_type top_recvg_pc = m_stack[now_tos_pos].m_recvg_pc;
+  address_type top_pc =
+      m_stack[now_tos_pos].m_pc;  // the pc of the instruction just executed
+  stack_entry_type top_type = m_stack[now_tos_pos].m_type;
+  unsigned top_wcnt = m_stack[now_tos_pos].m_wcnt;
+
+  assert(top_wcnt > 0);
+  // printf("<TEST>::\t(simt_stack)\t[update]\twarp %d, recvg_pc %d \n", m_warp_id, recvg_pc);
+  // print_test(top_active_mask);
+
+  // 找到分支信息
+  const address_type null_pc = -1;
+  bool warp_diverged = false;
+  address_type new_recvg_pc = null_pc;
+  unsigned num_divergent_paths = 0;
+  std::map<address_type, simt_mask_t> divergent_paths = getDivPaths(thread_done, next_pc, top_active_mask);
+  num_divergent_paths = divergent_paths.size();
+  printf("paths %d\n", num_divergent_paths);
+
+  // 分支路径一定<=2
+  address_type not_taken_pc = now_inst_pc + now_inst_size;
+  assert(num_divergent_paths <= 2);
+
+  // 对于分支指令，先更新栈顶
+  if(num_divergent_paths == 2) {
+    warp_diverged = true;
+    new_recvg_pc = recvg_pc;  // 设置重汇聚项
+    printf("!!!div it\n");
+  }
+
+  for (unsigned i = 0; i < num_divergent_paths; i++) {
+    // 对于每个分支/单个串行指令
+    address_type tmp_next_pc = null_pc;
+    simt_mask_t tmp_active_mask;
+    tbc_mask_t tmp_tbc_active_mask;
+    tmp_active_mask.reset();
+    std::map<address_type, simt_mask_t>::iterator it = divergent_paths.begin();
+    if (divergent_paths.find(not_taken_pc) != divergent_paths.end()) {
+      it = divergent_paths.find(not_taken_pc);
+      assert(i == 0);
+    }
+    tmp_next_pc = it->first;
+    tmp_active_mask = divergent_paths[tmp_next_pc];
+    divergent_paths.erase(tmp_next_pc);
+    tmp_tbc_active_mask = simt_mask_convert_tbc(real_thread, tmp_active_mask);
+
+    // 重汇聚选项时，必定执行栈顶的串行指令，对于当前栈的内容进行更改
+    /***** TODO: *****/
+    printf("recvg test:: top:%d next:%d\n", top_recvg_pc, tmp_next_pc);
+    if (top_recvg_pc != null_pc && tmp_next_pc == top_recvg_pc){
+      printf("!!recvg\n");
+      assert(!warp_diverged);
+      m_stack.back().m_wcnt--;
+      // 对于最后一个指令，直接将pop掉
+      if(top_wcnt == 1){
+        m_stack.pop_back();
+        while(m_stack.back().m_recvg_pc == top_recvg_pc && m_stack.back().m_pc == top_recvg_pc){
+          m_stack.pop_back();
+        }
+        m_tos_pos = m_stack.size() - 1;
+        if(m_stack.back().m_pc == top_recvg_pc){
+          printf("!!recvg:  next is recvg\n");
+          m_stack.back().m_wcnt = recvgWarp(simt_stacks, thread_done, now_inst_op,
+                                           now_inst_size, now_inst_pc ); // 将warp恢复为分支前的内容，其中包括修改SIMT栈
+        }else{
+          printf("!!recvg:  next is div\n");
+          m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
+                                           now_inst_size, now_inst_pc );
+        }
+        return 1;
+      }
+      return 2;
+    }
+
+    if(!warp_diverged) return -1;
+
+    // discard the new entry if its PC matches with reconvergence PC
+    // 指令分支并且为no选项，不push新内容
+    // [div_a][div_b][rec_b][rec_a]
+    // [div_a]              [rec_a]
+    if (warp_diverged && tmp_next_pc == new_recvg_pc) continue;
+
+    // 更新TBC栈的新项
+    int new_pos = get_pos(tmp_next_pc);
+    if(new_pos == -1){  // 新的分支，则进行初始化
+      m_stack.push_back(tbc_stack_entry());
+      m_stack.back().m_pc = tmp_next_pc;
+      m_stack.back().m_active_mask = tmp_tbc_active_mask;
+      m_stack.back().m_calldepth = 0;
+      m_stack.back().m_recvg_pc = new_recvg_pc;
+    }else{  // 已有分支，只更新active mask即可
+      stack_update(true, new_pos, tmp_next_pc, tmp_tbc_active_mask,m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle ,STACK_ENTRY_TYPE_NORMAL);
+    }
+  }
+  assert(m_stack.size() > 0);
+
+  m_stack[now_tos_pos].m_wcnt--;
+  // 如果最后一个warp到达，则更新栈顶指针tos并压缩新项的warp
+  if(m_stack[now_tos_pos].m_wcnt == 0){
+    // 更新栈顶的pc信息和wct信息
+    m_stack[now_tos_pos].m_pc = new_recvg_pc;
+    m_stack[now_tos_pos].m_branch_div_cycle =
+        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
+
+    m_tos_pos = m_stack.size() - 1;
+    m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
+                                           now_inst_size, now_inst_pc );  // 更新对应的simt栈
+    m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+    return 1;
+  }
+  // 更新ptx文件状态
+  m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+  return 2;
+}
+
+void core_t::initilizeTBCStack(unsigned warp_count, unsigned warp_size) {
+  m_tbc_stack = new tbc_stack(warp_count, warp_size, m_gpu);
+  m_warp_size = warp_size;
+  m_warp_count = warp_count;
+}
+
+void core_t::deleteTBCStack() {
+  if (m_tbc_stack) {
+    delete m_tbc_stack;
+    m_tbc_stack = NULL;
+  }
+}
+
+void tbc_stack::print_all_test(){
+  for (unsigned k = 0; k < m_stack.size(); k++) {
+    tbc_stack_entry stack_entry = m_stack[k];
+    if (k == 0) {
+      printf("TBC %1u ", k);
+    } else {
+      printf("  %1u ", k);
+    }
+    for (unsigned j = 0; j < m_warp_size * m_warp_count; j++){
+      assert(j < stack_entry.m_active_mask.size());
+      if(j%m_warp_size == 0) printf(" ");
+      printf("%c", (stack_entry.m_active_mask.test(j) ? '1' : '0'));
+    }
+    printf("\n pc: 0x%03x", stack_entry.m_pc);
+    if (stack_entry.m_recvg_pc == (unsigned)-1) {
+      printf(" rp: ---- tp: %s cd: %2u ",
+              (stack_entry.m_type == STACK_ENTRY_TYPE_CALL ? "C" : "N"),
+              stack_entry.m_calldepth);
+    } else {
+      printf(" rp: %4u tp: %s cd: %2u ", stack_entry.m_recvg_pc,
+              (stack_entry.m_type == STACK_ENTRY_TYPE_CALL ? "C" : "N"),
+              stack_entry.m_calldepth);
+    }
+    if (stack_entry.m_branch_div_cycle != 0) {
+      printf(" bd@%6u ", (unsigned)stack_entry.m_branch_div_cycle);
+    } else {
+      printf(" ");
+    }
+    printf(" wcnt:%d tos:%d", stack_entry.m_wcnt, m_tos_pos);
+    printf("\n");
+  }
 }

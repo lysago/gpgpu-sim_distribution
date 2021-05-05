@@ -1,0 +1,279 @@
+
+Fatbin elf code:
+================
+arch = sm_10
+code version = [1,2]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = swap.cu
+
+.section .strtab	STRTAB
+
+.section .shstrtab	STRTAB
+
+.section .symtab	SYMTAB
+ index           value           size      info    other  shndx    name  
+   0               0               0        0        0      0     (null)
+   1               0               0        3        0      1     .shstrtab
+   2               0               0        3        0      2     .strtab
+   3               0               0        3        0      3     .symtab
+   4               0               0        3        0      0     
+   5               0               0        3        0      9     .nv.global
+   6               0             592        3        0      4     .text._Z6kernelv
+   7               0               0        3        0      6     .nv.info._Z6kernelv
+   8               0               0        3        0      5     .nv.constant1._Z6kernelv
+   9               0               0        3        0      7     .nv.constant14
+  10               0               0        3        0      8     .rel.nv.constant14
+  11               0               0       12       10      4     _Z6kernelv
+  12               0               4       11        0      9     ans
+
+
+.nv.constant1._Z6kernelv	PROGBITS
+0x00000001  0x00010000  
+
+
+.nv.constant14	PROGBITS
+0x00000000  
+
+.section .rel.nv.constant14	REL
+0    ans    R_NV_32
+
+
+.text._Z6kernelv	PROGBITS
+bar = 0	reg = 7	lmem=0	smem=0
+0xa0000001  0x040007c0  0x102b8009  0x0aaaaaab  
+0xa0000005  0x04114780  0x4005040d  0x00000780  
+0x6004060d  0x0000c7d0  0x30100611  0xc4100780  
+0x3010060d  0xe4100780  0x600405fd  0x000107e8  
+0x2100060d  0x04405880  0x60050605  0x0c00e780  
+0x30010205  0xec100780  0x30008209  0x00000003  
+0x10000405  0x0403c080  0x30010209  0xc4100780  
+0x20018404  0x20418004  0xd08001fd  0x044007d8  
+0x307c03fd  0x6c0087c8  0xa0004c05  0x04200780  
+0x10020003  0x00001280  0x40010409  0x00000780  
+0x60000609  0x00008780  0x30100409  0xc4100780  
+0x60000409  0x00008780  0x1001d003  0x00000100  
+0x20018205  0x00000003  0x20029003  0x00000000  
+0x10000005  0x2780c780  0xd00e0201  0xa0c00780  
+0x30000003  0x00000780  0x10000001  0x2780c780  
+0xd00e0009  0xa0c00780  0x30000003  0x00000780  
+0x20000209  0x04000780  0x10026003  0x00000100  
+0x20400001  0x04004780  0x10000005  0x2780c780  
+0xd00e0201  0xa0c00780  0x30000003  0x00000780  
+0x10000001  0x2780c780  0xd00e0009  0xa0c00780  
+0x30000003  0x00000780  0xa0000209  0x04114780  
+0xa000040d  0x44004780  0xa0000011  0x04114780  
+0x90000615  0x00000780  0xa000080d  0x44064780  
+0x203e8a15  0x0fffffff  0xc005060d  0x0000c7c0  
+0xa000060d  0x84064780  0x40070819  0x00000780  
+0x60060a19  0x00018780  0x30100c19  0xc4100780  
+0x60060819  0x00018780  0x20400819  0x04018780  
+0xa0000c19  0x44064780  0xc0050c15  0x0000c7c0  
+0xa0000a15  0x84064780  0x2000060d  0x04014780  
+0x40040e15  0x00000780  0x60050c15  0x00014780  
+0x30100a15  0xc4100780  0x60040c15  0x00014780  
+0x30000a11  0x04010780  0x30040409  0x6400c780  
+0xd0000201  0x04008780  0x301f0001  0xe4100780  
+0x3000040d  0x0400c780  0xa0000009  0x2c014780  
+0xd0030409  0x04008780  0x307c03fd  0x6c0147c8  
+0x20000001  0x04008780  0xd0010001  0x0402c500  
+0x30000003  0x00000780  0xf0000001  0xe0000001  
+
+
+
+.nv.info._Z6kernelv	PROGBITS
+	<0x1>
+	Attribute:	EIATTR_SYNC_STACK
+	Format:	EIFMT_SVAL
+	Value:	0x50028 0x3 
+
+	code for sm_10
+		Function : _Z6kernelv
+	/*0000*/     /*0xa0000001040007c0*/ 	I2I.U32.U16.C0 R0, R0L;
+	/*0008*/     /*0x102b80090aaaaaab*/ 	MVI R2, -0x55555555;
+	/*0010*/     /*0xa000000504114780*/ 	I2I.U32.S32 R1, |R0|;
+	/*0018*/     /*0x4005040d00000780*/ 	IMUL.U16.U16 R3, R1L, R2H;
+	/*0020*/     /*0x6004060d0000c7d0*/ 	IMAD.U16.C1 R3, R1H, R2L, R3;
+	/*0028*/     /*0x30100611c4100780*/ 	SHL R4, R3, 0x10;
+	/*0030*/     /*0x3010060de4100780*/ 	SHR R3, R3, 0x10;
+	/*0038*/     /*0x600405fd000107e8*/ 	IMAD.U16.C2 o [0x7f], R1L, R2L, R4;
+	/*0040*/     /*0x2100060d04405880*/ 	IADD R3 (C1.CARRY), R3, c [0x1] [0x1];
+	/*0048*/     /*0x600506050c00e780*/ 	IMAD.U16 R1 (C3), -R1H, R2H, R3;
+	/*0050*/     /*0x30010205ec100780*/ 	SHR.S32 R1, R1, 0x1;
+	/*0058*/     /*0x3000820900000003*/ 	IADD32I R2, -R1, 0x0;
+	/*0060*/     /*0x100004050403c080*/ 	MOV R1 (C0.LT), R2;
+	/*0068*/     /*0x30010209c4100780*/ 	SHL R2, R1, 0x1;
+	/*0070*/     /*0x20018404        */ 	IADD32 R1, R2, R1;
+	/*0074*/     /*0x20418004        */ 	IADD32 R1, R0, -R1;
+	/*0078*/     /*0xd08001fd044007d8*/ 	LOP.AND.C1 o [0x7f], R0, c [0x1] [0x0];
+	/*0080*/     /*0x307c03fd6c0087c8*/ 	ISET.S32.C0 o [0x7f], R1, R124, EQ;
+	/*0088*/     /*0xa0004c0504200780*/ 	I2I.U32.U16 R1, g [0x6].U16;
+	/*0090*/     /*0x1002000300001280*/ 	BRA C1.NE, 0x100;
+	/*0098*/     /*0x4001040900000780*/ 	IMUL.U16.U16 R2, R1L, R0H;
+	/*00a0*/     /*0x6000060900008780*/ 	IMAD.U16 R2, R1H, R0L, R2;
+	/*00a8*/     /*0x30100409c4100780*/ 	SHL R2, R2, 0x10;
+	/*00b0*/     /*0x6000040900008780*/ 	IMAD.U16 R2, R1L, R0L, R2;
+	/*00b8*/     /*0x1001d00300000100*/ 	BRA C0.EQ, 0xe8;
+	/*00c0*/     /*0x2001820500000003*/ 	IADD32I R1, R1, 0x1;
+	/*00c8*/     /*0x2002900300000000*/ 	CAL.NOINC 0x148;
+	/*00d0*/     /*0x100000052780c780*/ 	MVC R1, c [0xe] [0x0];
+	/*00d8*/     /*0xd00e0201a0c00780*/ 	GST.U32 global14 [R1], R0;
+	/*00e0*/     /*0x3000000300000780*/ 	RET;
+	/*00e8*/     /*0x100000012780c780*/ 	MVC R0, c [0xe] [0x0];
+	/*00f0*/     /*0xd00e0009a0c00780*/ 	GST.U32 global14 [R0], R2;
+	/*00f8*/     /*0x3000000300000780*/ 	RET;
+	/*0100*/     /*0x2000020904000780*/ 	IADD R2, R1, R0;
+	/*0108*/     /*0x1002600300000100*/ 	BRA C0.EQ, 0x130;
+	/*0110*/     /*0x2040000104004780*/ 	IADD R0, R0, -R1;
+	/*0118*/     /*0x100000052780c780*/ 	MVC R1, c [0xe] [0x0];
+	/*0120*/     /*0xd00e0201a0c00780*/ 	GST.U32 global14 [R1], R0;
+	/*0128*/     /*0x3000000300000780*/ 	RET;
+	/*0130*/     /*0x100000012780c780*/ 	MVC R0, c [0xe] [0x0];
+	/*0138*/     /*0xd00e0009a0c00780*/ 	GST.U32 global14 [R0], R2;
+	/*0140*/     /*0x3000000300000780*/ 	RET;
+	/*0148*/     /*0xa000020904114780*/ 	I2I.U32.S32 R2, |R1|;
+	/*0150*/     /*0xa000040d44004780*/ 	I2F.F32.U32 R3, R2;
+	/*0158*/     /*0xa000001104114780*/ 	I2I.U32.S32 R4, |R0|;
+	/*0160*/     /*0x9000061500000780*/ 	RCP R5, R3;
+	/*0168*/     /*0xa000080d44064780*/ 	I2F.F32.U32.TRUNC R3, R4;
+	/*0170*/     /*0x203e8a150fffffff*/ 	IADD32I R5, R5, 0xfffffffe;
+	/*0178*/     /*0xc005060d0000c7c0*/ 	FMUL.TRUNC.C0 R3, R3, R5;
+	/*0180*/     /*0xa000060d84064780*/ 	F2I.U32.F32.TRUNC R3, R3;
+	/*0188*/     /*0x4007081900000780*/ 	IMUL.U16.U16 R6, R2L, R3H;
+	/*0190*/     /*0x60060a1900018780*/ 	IMAD.U16 R6, R2H, R3L, R6;
+	/*0198*/     /*0x30100c19c4100780*/ 	SHL R6, R6, 0x10;
+	/*01a0*/     /*0x6006081900018780*/ 	IMAD.U16 R6, R2L, R3L, R6;
+	/*01a8*/     /*0x2040081904018780*/ 	IADD R6, R4, -R6;
+	/*01b0*/     /*0xa0000c1944064780*/ 	I2F.F32.U32.TRUNC R6, R6;
+	/*01b8*/     /*0xc0050c150000c7c0*/ 	FMUL.TRUNC.C0 R5, R6, R5;
+	/*01c0*/     /*0xa0000a1584064780*/ 	F2I.U32.F32.TRUNC R5, R5;
+	/*01c8*/     /*0x2000060d04014780*/ 	IADD R3, R3, R5;
+	/*01d0*/     /*0x40040e1500000780*/ 	IMUL.U16.U16 R5, R3H, R2L;
+	/*01d8*/     /*0x60050c1500014780*/ 	IMAD.U16 R5, R3L, R2H, R5;
+	/*01e0*/     /*0x30100a15c4100780*/ 	SHL R5, R5, 0x10;
+	/*01e8*/     /*0x60040c1500014780*/ 	IMAD.U16 R5, R3L, R2L, R5;
+	/*01f0*/     /*0x30000a1104010780*/ 	IADD R4, -R5, R4;
+	/*01f8*/     /*0x300404096400c780*/ 	ISET R2, R2, R4, LE;
+	/*0200*/     /*0xd000020104008780*/ 	LOP.XOR R0, R1, R0;
+	/*0208*/     /*0x301f0001e4100780*/ 	SHR R0, R0, 0x1f;
+	/*0210*/     /*0x3000040d0400c780*/ 	IADD R3, -R2, R3;
+	/*0218*/     /*0xa00000092c014780*/ 	I2I.S32.S32 R2, -R0;
+	/*0220*/     /*0xd003040904008780*/ 	LOP.XOR R2, R2, R3;
+	/*0228*/     /*0x307c03fd6c0147c8*/ 	ISET.S32.C0 o [0x7f], R1, R124, NE;
+	/*0230*/     /*0x2000000104008780*/ 	IADD R0, R0, R2;
+	/*0238*/     /*0xd00100010402c500*/ 	LOP.PASS_B R0 (C0.EQU), R0, ~R1;
+	/*0240*/     /*0x3000000300000780*/ 	RET;
+	/*0248*/     /*0xf0000001e0000001*/ 	NOP;
+		...........................
+
+
+
+Fatbin ptx code:
+================
+arch = sm_10
+code version = [1,4]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = swap.cu
+	.version 1.4
+.target sm_10, map_f64_to_f32
+
+	
+
+
+	
+	
+
+
+	
+	
+	
+	
+	
+	
+	
+
+.file	1	"<command-line>"
+.file	2	"/tmp/tmpxft_00002bac_00000000-6_swap.cudafe2.gpu"
+.file	3	"/usr/lib/gcc/x86_64-linux-gnu/4.6/include/stddef.h"
+.file	4	"/usr/local/cuda-4.2/cuda/bin/../include/crt/device_runtime.h"
+.file	5	"/usr/local/cuda-4.2/cuda/bin/../include/host_defines.h"
+.file	6	"/usr/local/cuda-4.2/cuda/bin/../include/builtin_types.h"
+.file	7	"/usr/local/cuda-4.2/cuda/bin/../include/device_types.h"
+.file	8	"/usr/local/cuda-4.2/cuda/bin/../include/driver_types.h"
+.file	9	"/usr/local/cuda-4.2/cuda/bin/../include/surface_types.h"
+.file	10	"/usr/local/cuda-4.2/cuda/bin/../include/texture_types.h"
+.file	11	"/usr/local/cuda-4.2/cuda/bin/../include/vector_types.h"
+.file	12	"/usr/local/cuda-4.2/cuda/bin/../include/device_launch_parameters.h"
+.file	13	"/usr/local/cuda-4.2/cuda/bin/../include/crt/storage_class.h"
+.file	14	"swap.cu"
+.file	15	"/usr/local/cuda-4.2/cuda/bin/../include/common_functions.h"
+.file	16	"/usr/local/cuda-4.2/cuda/bin/../include/math_functions.h"
+.file	17	"/usr/local/cuda-4.2/cuda/bin/../include/math_constants.h"
+.file	18	"/usr/local/cuda-4.2/cuda/bin/../include/device_functions.h"
+.file	19	"/usr/local/cuda-4.2/cuda/bin/../include/sm_11_atomic_functions.h"
+.file	20	"/usr/local/cuda-4.2/cuda/bin/../include/sm_12_atomic_functions.h"
+.file	21	"/usr/local/cuda-4.2/cuda/bin/../include/sm_13_double_functions.h"
+.file	22	"/usr/local/cuda-4.2/cuda/bin/../include/sm_20_atomic_functions.h"
+.file	23	"/usr/local/cuda-4.2/cuda/bin/../include/sm_20_intrinsics.h"
+.file	24	"/usr/local/cuda-4.2/cuda/bin/../include/sm_30_intrinsics.h"
+.file	25	"/usr/local/cuda-4.2/cuda/bin/../include/surface_functions.h"
+.file	26	"/usr/local/cuda-4.2/cuda/bin/../include/texture_fetch_functions.h"
+.file	27	"/usr/local/cuda-4.2/cuda/bin/../include/math_functions_dbl_ptx1.h"
+
+.global .s32 ans;
+
+.entry _Z6kernelv
+{
+.reg .u32 %r<20>;
+.reg .pred %p<5>;
+.loc	14	7	0
+$LDWbegin__Z6kernelv:
+cvt.s32.u16 %r1, %tid.x;
+mov.s32 %r2, -1431655765;
+mov.s32 %r3, 0;
+setp.lt.s32 %p1, %r1, %r3;
+abs.s32 %r4, %r1;
+mul.hi.u32 %r5, %r4, %r2;
+shr.s32 %r6, %r5, 1;
+@%p1 sub.s32 %r6, %r3, %r6;
+mov.s32 %r7, %r6;
+mul.lo.s32 %r8, %r7, 3;
+sub.s32 %r9, %r1, %r8;
+mov.s32 %r10, 0;
+setp.eq.s32 %p2, %r9, %r10;
+cvt.s32.u16 %r11, %ctaid.x;
+and.b32 %r12, %r1, 1;
+mov.u32 %r13, 0;
+setp.ne.u32 %p3, %r12, %r13;
+@%p3 bra $Lt_0_2818;
+.loc	14	11	0
+mul.lo.s32 %r14, %r11, %r1;
+@!%p2 bra $Lt_0_3330;
+.loc	14	12	0
+add.s32 %r15, %r11, 1;
+div.s32 %r16, %r1, %r15;
+st.global.s32 [ans], %r16;
+bra.uni $Lt_0_3586;
+$Lt_0_3330:
+st.global.s32 [ans], %r14;
+bra.uni $Lt_0_3586;
+$Lt_0_2818:
+.loc	14	16	0
+add.s32 %r17, %r11, %r1;
+@!%p2 bra $Lt_0_3842;
+.loc	14	18	0
+sub.s32 %r18, %r1, %r11;
+st.global.s32 [ans], %r18;
+bra.uni $Lt_0_3586;
+$Lt_0_3842:
+st.global.s32 [ans], %r17;
+$Lt_0_3586:
+$Lt_0_2562:
+.loc	14	20	0
+exit;
+$LDWend__Z6kernelv:
+} 
+

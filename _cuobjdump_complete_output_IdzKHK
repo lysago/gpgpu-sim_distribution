@@ -1,0 +1,162 @@
+
+Fatbin elf code:
+================
+arch = sm_10
+code version = [1,2]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = ../test/swap.cu
+
+.section .strtab	STRTAB
+
+.section .shstrtab	STRTAB
+
+.section .symtab	SYMTAB
+ index           value           size      info    other  shndx    name  
+   0               0               0        0        0      0     (null)
+   1               0               0        3        0      1     .shstrtab
+   2               0               0        3        0      2     .strtab
+   3               0               0        3        0      3     .symtab
+   4               0               0        3        0      0     
+   5               0               0        3        0      9     .nv.global
+   6               0             112        3        0      4     .text._Z6kernelv
+   7               0               0        3        0      6     .nv.info._Z6kernelv
+   8               0               0        3        0      5     .nv.constant1._Z6kernelv
+   9               0               0        3        0      7     .nv.constant14
+  10               0               0        3        0      8     .rel.nv.constant14
+  11               0               0       12       10      4     _Z6kernelv
+  12               0               4       11        0      9     ans
+
+
+.nv.constant1._Z6kernelv	PROGBITS
+0x00000001  
+
+
+.nv.constant14	PROGBITS
+0x00000000  
+
+.section .rel.nv.constant14	REL
+0    ans    R_NV_32
+
+
+.text._Z6kernelv	PROGBITS
+bar = 0	reg = 3	lmem=0	smem=0
+0xa0000005  0x04000780  0xd08003fd  0x044007c8  
+0xa0004c01  0x04200780  0x1000b003  0x00000280  
+0x40030009  0x00000780  0x60020209  0x00008780  
+0x30100409  0xc4100780  0x60020005  0x00008780  
+0x10000001  0x2780c780  0xd00e0005  0xa0c00780  
+0x30000003  0x00000780  0x20000001  0x04004780  
+0x10000005  0x2780c780  0xd00e0201  0xa0c00781  
+
+
+
+.nv.info._Z6kernelv	PROGBITS
+	<0x1>
+	Attribute:	EIATTR_SYNC_STACK
+	Format:	EIFMT_SVAL
+	Value:	0x10008 0x1 
+
+	code for sm_10
+		Function : _Z6kernelv
+	/*0000*/     /*0xa000000504000780*/ 	I2I.U32.U16 R1, R0L;
+	/*0008*/     /*0xd08003fd044007c8*/ 	LOP.AND.C0 o [0x7f], R1, c [0x1] [0x0];
+	/*0010*/     /*0xa0004c0104200780*/ 	I2I.U32.U16 R0, g [0x6].U16;
+	/*0018*/     /*0x1000b00300000280*/ 	BRA C0.NE, 0x58;
+	/*0020*/     /*0x4003000900000780*/ 	IMUL.U16.U16 R2, R0L, R1H;
+	/*0028*/     /*0x6002020900008780*/ 	IMAD.U16 R2, R0H, R1L, R2;
+	/*0030*/     /*0x30100409c4100780*/ 	SHL R2, R2, 0x10;
+	/*0038*/     /*0x6002000500008780*/ 	IMAD.U16 R1, R0L, R1L, R2;
+	/*0040*/     /*0x100000012780c780*/ 	MVC R0, c [0xe] [0x0];
+	/*0048*/     /*0xd00e0005a0c00780*/ 	GST.U32 global14 [R0], R1;
+	/*0050*/     /*0x3000000300000780*/ 	RET;
+	/*0058*/     /*0x2000000104004780*/ 	IADD R0, R0, R1;
+	/*0060*/     /*0x100000052780c780*/ 	MVC R1, c [0xe] [0x0];
+	/*0068*/     /*0xd00e0201a0c00781*/ 	GST.U32 global14 [R1], R0;
+		...........................
+
+
+
+Fatbin ptx code:
+================
+arch = sm_10
+code version = [1,4]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = ../test/swap.cu
+	.version 1.4
+.target sm_10, map_f64_to_f32
+
+	
+
+
+	
+	
+
+
+	
+	
+	
+	
+	
+	
+	
+
+.file	1	"<command-line>"
+.file	2	"/tmp/tmpxft_00002f33_00000000-6_swap.cudafe2.gpu"
+.file	3	"/usr/lib/gcc/x86_64-linux-gnu/4.6/include/stddef.h"
+.file	4	"/usr/local/cuda-4.2/cuda/bin/../include/crt/device_runtime.h"
+.file	5	"/usr/local/cuda-4.2/cuda/bin/../include/host_defines.h"
+.file	6	"/usr/local/cuda-4.2/cuda/bin/../include/builtin_types.h"
+.file	7	"/usr/local/cuda-4.2/cuda/bin/../include/device_types.h"
+.file	8	"/usr/local/cuda-4.2/cuda/bin/../include/driver_types.h"
+.file	9	"/usr/local/cuda-4.2/cuda/bin/../include/surface_types.h"
+.file	10	"/usr/local/cuda-4.2/cuda/bin/../include/texture_types.h"
+.file	11	"/usr/local/cuda-4.2/cuda/bin/../include/vector_types.h"
+.file	12	"/usr/local/cuda-4.2/cuda/bin/../include/device_launch_parameters.h"
+.file	13	"/usr/local/cuda-4.2/cuda/bin/../include/crt/storage_class.h"
+.file	14	"../test/swap.cu"
+.file	15	"/usr/local/cuda-4.2/cuda/bin/../include/common_functions.h"
+.file	16	"/usr/local/cuda-4.2/cuda/bin/../include/math_functions.h"
+.file	17	"/usr/local/cuda-4.2/cuda/bin/../include/math_constants.h"
+.file	18	"/usr/local/cuda-4.2/cuda/bin/../include/device_functions.h"
+.file	19	"/usr/local/cuda-4.2/cuda/bin/../include/sm_11_atomic_functions.h"
+.file	20	"/usr/local/cuda-4.2/cuda/bin/../include/sm_12_atomic_functions.h"
+.file	21	"/usr/local/cuda-4.2/cuda/bin/../include/sm_13_double_functions.h"
+.file	22	"/usr/local/cuda-4.2/cuda/bin/../include/sm_20_atomic_functions.h"
+.file	23	"/usr/local/cuda-4.2/cuda/bin/../include/sm_20_intrinsics.h"
+.file	24	"/usr/local/cuda-4.2/cuda/bin/../include/sm_30_intrinsics.h"
+.file	25	"/usr/local/cuda-4.2/cuda/bin/../include/surface_functions.h"
+.file	26	"/usr/local/cuda-4.2/cuda/bin/../include/texture_fetch_functions.h"
+.file	27	"/usr/local/cuda-4.2/cuda/bin/../include/math_functions_dbl_ptx1.h"
+
+.global .s32 ans;
+
+.entry _Z6kernelv
+{
+.reg .u32 %r<8>;
+.reg .pred %p<3>;
+.loc	14	7	0
+$LDWbegin__Z6kernelv:
+cvt.s32.u16 %r1, %ctaid.x;
+cvt.s32.u16 %r2, %tid.x;
+and.b32 %r3, %r2, 1;
+mov.u32 %r4, 0;
+setp.ne.u32 %p1, %r3, %r4;
+@%p1 bra $Lt_0_1282;
+.loc	14	11	0
+mul.lo.s32 %r5, %r1, %r2;
+st.global.s32 [ans], %r5;
+bra.uni $Lt_0_1026;
+$Lt_0_1282:
+.loc	14	15	0
+add.s32 %r6, %r1, %r2;
+st.global.s32 [ans], %r6;
+$Lt_0_1026:
+.loc	14	18	0
+exit;
+$LDWend__Z6kernelv:
+} 
+

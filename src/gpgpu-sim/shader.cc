@@ -63,6 +63,78 @@ mem_fetch *shader_core_mem_fetch_allocator::alloc(
 }
 /////////////////////////////////////////////////////////////////////////////
 
+/************* DONE **************************/
+void shader_core_ctx::swap_warp_test(unsigned wid1, unsigned wid2, unsigned aaa){
+
+  // m_warp[wid1]->swap_lane(m_warp[wid2], lane_id);
+  printf("<TEST>::swap  warp %d %d %d\n", wid1, wid2, aaa);
+
+  simt_stack *mid_stack = m_simt_stack[wid1];
+  m_simt_stack[wid1] = m_simt_stack[wid2]; 
+  m_simt_stack[wid2] = mid_stack;
+  
+  shd_warp_t *mid_warp = m_warp[wid1];
+  m_warp[wid1] = m_warp[wid2];
+  m_warp[wid2] = mid_warp;
+
+  for(int lane_id = 0; lane_id < m_config->warp_size; ++lane_id){
+    unsigned tid1 = wid1 * m_config->warp_size + lane_id;
+    unsigned tid2 = wid2 * m_config->warp_size + lane_id;
+
+    thread_ctx_t mid = m_threadState[tid1];
+    m_threadState[tid1] = m_threadState[tid2];
+    m_threadState[tid2] = mid;
+
+    ptx_thread_info *mid2 = m_thread[tid1];
+    m_thread[tid1] = m_thread[tid2];
+    m_thread[tid2] = mid2;
+
+    bool flag = m_active_threads.test(tid1);
+    if(m_active_threads.test(tid2)){ m_active_threads.set(tid1); }
+    if(flag) { m_active_threads.set(tid2); }
+  }
+
+}
+/*
+void shader_core_ctx::add_warp_test(unsigned wid_old, unsigned wid){
+
+  unsigned start_thread = wid * m_config->warp_size;
+  unsigned end_thread = start_thread + m_config->warp_size;
+  unsigned start_thread_old = wid_old * m_config->warp_size;
+  unsigned end_thread_old = start_thread_old + m_config->warp_size;
+  
+  reinit(start_thread, end_thread, false);
+  // m_warp[wid1]->swap_lane(m_warp[wid2], lane_id);
+  printf("<TEST>::add  warp %d %d\n", wid_old, wid);
+
+  simt_stack *mid_stack = m_simt_stack[wid1];
+  m_simt_stack[wid1] = m_simt_stack[wid2]; 
+  m_simt_stack[wid2] = mid_stack;
+  
+  shd_warp_t *mid_warp = m_warp[wid1];
+  m_warp[wid1] = m_warp[wid2];
+  m_warp[wid2] = mid_warp;
+
+  for(int lane_id = 0; lane_id < m_config->warp_size; ++lane_id){
+    unsigned tid1 = wid1 * m_config->warp_size + lane_id;
+    unsigned tid2 = wid2 * m_config->warp_size + lane_id;
+
+    thread_ctx_t mid = m_threadState[tid1];
+    m_threadState[tid1] = m_threadState[tid2];
+    m_threadState[tid2] = mid;
+
+    ptx_thread_info *mid2 = m_thread[tid1];
+    m_thread[tid1] = m_thread[tid2];
+    m_thread[tid2] = mid2;
+
+    bool flag = m_active_threads.test(tid1);
+    if(m_active_threads.test(tid2)){ m_active_threads.set(tid1); }
+    if(flag) { m_active_threads.set(tid2); }
+  }
+
+}
+*/
+
 std::list<unsigned> shader_core_ctx::get_regs_written(const inst_t &fvt) const {
   std::list<unsigned> result;
   for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
@@ -497,7 +569,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
-  //
+  
   address_type start_pc = next_pc(start_thread);
   unsigned kernel_id = kernel.get_uid();
   if (m_config->model == POST_DOMINATOR) {
@@ -505,6 +577,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
     unsigned warp_per_cta = cta_size / m_config->warp_size;
     unsigned end_warp = end_thread / m_config->warp_size +
                         ((end_thread % m_config->warp_size) ? 1 : 0);
+    tbc_mask_t tbc_active_threads;
     for (unsigned i = start_warp; i < end_warp; ++i) {
       unsigned n_active = 0;
       simt_mask_t active_threads;
@@ -515,8 +588,10 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
           assert(!m_active_threads.test(hwtid));
           m_active_threads.set(hwtid);
           active_threads.set(t);
+          tbc_active_threads.set(hwtid);
         }
       }
+      printf("<TEST>::\t(shader_core_ctx)\t[init_warps]\tshader %d\n", m_sid);
       m_simt_stack[i]->launch(start_pc, active_threads);
 
       if (m_gpu->resume_option == 1 && kernel_id == m_gpu->resume_kernel &&
@@ -541,6 +616,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
       m_not_completed += n_active;
       ++m_active_warps;
     }
+    m_tbc_stack->launch(start_pc, tbc_active_threads);
   }
 }
 
@@ -1002,6 +1078,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   m_warp[warp_id]->ibuffer_free();
   assert(next_inst->valid());
   **pipe_reg = *next_inst;  // static instruction information
+  printf("<TEST>::\t(shader)\t[issue_warp]\t shader %d, warp %d\n", m_sid, warp_id);
   (*pipe_reg)->issue(active_mask, warp_id,
                      m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
                      m_warp[warp_id]->get_dynamic_warp_id(),
@@ -1018,7 +1095,10 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     m_warp[warp_id]->set_membar();
   }
 
+  printf("<TEST>::\t(core)\t[updateSIMTStack]\tshader %d, warp %d\n", m_sid, warp_id);
   updateSIMTStack(warp_id, *pipe_reg);
+  m_simt_stack[warp_id]->print_all_test();
+  m_tbc_stack->print_all_test();
 
   m_scoreboard->reserveRegisters(*pipe_reg);
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
@@ -1083,7 +1163,7 @@ void scheduler_unit::order_lrr(
 }
 
 /**
- * A general function to order things in an priority-based way.
+ * A general function to order things  an priority-based way.
  * The core usage of the function is similar to order_lrr.
  * The explanation of the additional parameters (beyond order_lrr) explains the
  * further extensions.
@@ -1094,6 +1174,11 @@ void scheduler_unit::order_lrr(
  * list of integer warp_ids with the oldest warps having the most priority, then
  * the priority_function would compare the age of the two warps.
  */
+template <class T>
+unsigned scheduler_unit::get_id(T temp){
+  return temp->get_dynamic_warp_id();
+}
+
 template <class T>
 void scheduler_unit::order_by_priority(
     std::vector<T> &result_list, const typename std::vector<T> &input_list,
@@ -1141,10 +1226,12 @@ void scheduler_unit::cycle() {
            m_next_cycle_prioritized_warps.begin();
        iter != m_next_cycle_prioritized_warps.end(); iter++) {
     // Don't consider warps that are not yet valid
-    if ((*iter) == NULL || (*iter)->done_exit()) {
+    if ((*iter) == NULL || (*iter)->done_exit() || m_shader->test_warp_waiting((*iter)->get_warp_id())) {
       continue;
     }
     SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u)\n",
+                  (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
+    printf("Testing (warp_id %u, dynamic_warp_id %u)\n",
                   (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
     unsigned warp_id = (*iter)->get_warp_id();
     unsigned checked = 0;
@@ -1207,6 +1294,7 @@ void scheduler_unit::cycle() {
                 (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
             ready_inst = true;
 
+            // 在此处得到掩码
             const active_mask_t &active_mask =
                 m_shader->get_active_mask(warp_id, pI);
 
@@ -1453,11 +1541,13 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
 }
 
 void lrr_scheduler::order_warps() {
+  printf("YESYES LRR\n");
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
             m_last_supervised_issued, m_supervised_warps.size());
 }
 
 void gto_scheduler::order_warps() {
+  // printf("YESYES GTO\n");
   order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERING_GREEDY_THEN_PRIORITY_FUNC,
@@ -1465,6 +1555,7 @@ void gto_scheduler::order_warps() {
 }
 
 void oldest_scheduler::order_warps() {
+  printf("YESYES OLD\n");
   order_by_priority(m_next_cycle_prioritized_warps, m_supervised_warps,
                     m_last_supervised_issued, m_supervised_warps.size(),
                     ORDERED_PRIORITY_FUNC_ONLY,
@@ -1474,6 +1565,7 @@ void oldest_scheduler::order_warps() {
 void two_level_active_scheduler::do_on_warp_issued(
     unsigned warp_id, unsigned num_issued,
     const std::vector<shd_warp_t *>::const_iterator &prioritized_iter) {
+  printf("YESYES TWO\n");
   scheduler_unit::do_on_warp_issued(warp_id, num_issued, prioritized_iter);
   if (SCHEDULER_PRIORITIZATION_LRR == m_inner_level_prioritization) {
     std::vector<shd_warp_t *> new_active;
@@ -1735,6 +1827,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 }
 
 void shader_core_ctx::writeback() {
+  printf("<TEST>::\t(shader)\t[writeback]\tstart, shader %d\n", m_sid);
   unsigned max_committed_thread_instructions =
       m_config->warp_size *
       (m_config->pipe_widths[EX_WB]);  // from the functional units
@@ -1748,6 +1841,8 @@ void shader_core_ctx::writeback() {
 
   warp_inst_t **preg = m_pipeline_reg[EX_WB].get_ready();
   warp_inst_t *pipe_reg = (preg == NULL) ? NULL : *preg;
+  int i = 0;
+  int last_id = -1; /*********** DONE ***************/
   while (preg and !pipe_reg->empty()) {
     /*
      * Right now, the writeback stage drains all waiting instructions
@@ -1778,6 +1873,10 @@ void shader_core_ctx::writeback() {
     pipe_reg->clear();
     preg = m_pipeline_reg[EX_WB].get_ready();
     pipe_reg = (preg == NULL) ? NULL : *preg;
+    /*********** DONE ***************/
+    printf("<TEST>::\t[writeback]\tpreg %d, warp %d\n", ++i, warp_id);
+    // if(i != 1)  swap_warp_test(warp_id, last_id, 1);
+    last_id = warp_id;
   }
 }
 
@@ -2683,6 +2782,7 @@ void ldst_unit::cycle() {
 
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
                                                kernel_info_t *kernel) {
+  printf("<TEST>::\t(shader)\t[CTA THREAD] %d\n", cta_num);
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
   if (!m_cta_status[cta_num]) {
@@ -4218,6 +4318,7 @@ unsigned simt_core_cluster::issue_block2core() {
         //            (m_core[core]->get_n_active_cta() <
         //            m_config->max_cta(*kernel)) ) {
         m_core[core]->can_issue_1block(*kernel)) {
+      printf("<TEST>::Here issue_block2core 02 [%d] [%d].\n", m_cluster_id, core);
       m_core[core]->issue_block2core(*kernel);
       num_blocks_issued++;
       m_cta_issue_next_core = core;

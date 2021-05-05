@@ -106,6 +106,7 @@ class shd_warp_t {
     reset();
   }
   void reset() {
+    // printf("<TEST>::  (shd_warp)  [reset]  block %d, warp %d, dwid %d\n", m_cta_id, m_warp_id, m_dynamic_warp_id);
     assert(m_stores_outstanding == 0);
     assert(m_inst_in_pipeline == 0);
     m_imiss_pending = false;
@@ -125,6 +126,7 @@ class shd_warp_t {
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
             unsigned dynamic_warp_id) {
+    // printf("<TEST>::  (shd_warp)  [init]  block %u, warp %u, dwid %u\n", cta_id, wid, dynamic_warp_id);
     m_cta_id = cta_id;
     m_warp_id = wid;
     m_dynamic_warp_id = dynamic_warp_id;
@@ -282,6 +284,15 @@ class shd_warp_t {
  public:
   unsigned int m_cdp_latency;
   bool m_cdp_dummy;
+  /***************** DONE *****************/
+  /*
+  void swap_lane( shd_warp_t* B, unsigned lane_id ){
+    per_thread_info ta = this->get_scalar_thread(lane_id);
+    per_thread_info tb = B->get_scalar_thread(lane_id);
+    B->set_scalar_thread(lane_id, ta);
+    this->set_scalar_thread(lane_id, tb);
+  }
+  */
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {
@@ -350,6 +361,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   virtual ~scheduler_unit() {}
   virtual void add_supervised_warp_id(int i) {
     m_supervised_warps.push_back(&warp(i));
+    // printf("<TEST>::  (scheduler) [add_input] warp %d, warp2 %d\n", i, warp(i).get_warp_id());
   }
   virtual void done_adding_supervised_warps() {
     m_last_supervised_issued = m_supervised_warps.end();
@@ -379,6 +391,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
     ORDERED_PRIORITY_FUNC_ONLY,
     NUM_ORDERING,
   };
+  template <typename U> unsigned get_id(U temp);
   template <typename U>
   void order_by_priority(
       std::vector<U> &result_list, const typename std::vector<U> &input_list,
@@ -1886,6 +1899,8 @@ class shader_core_ctx : public core_t {
   void reinit(unsigned start_thread, unsigned end_thread,
               bool reset_not_completed);
   void issue_block2core(class kernel_info_t &kernel);
+  /************* DONE **************************/
+  void swap_warp_test(unsigned wid1, unsigned wid2, unsigned lane);
 
   void cache_flush();
   void cache_invalidate();

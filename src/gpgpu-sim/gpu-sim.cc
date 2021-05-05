@@ -1676,10 +1676,12 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   m_barriers.allocate_barrier(free_cta_hw_id, warps);
 
   // initialize the SIMT stacks and fetch hardware
+  /************ DONE **************************/
   init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
   m_n_active_cta++;
 
   shader_CTA_count_log(m_sid, 1);
+  printf("<TEST>::Here issue_block2core DONE.\n");
   SHADER_DPRINTF(LIVENESS,
                  "GPGPU-Sim uArch: cta:%2u, start_tid:%4u, end_tid:%4u, "
                  "initialized @(%lld,%lld)\n",
@@ -1867,6 +1869,7 @@ void gpgpu_sim::cycle() {
     }
 #endif
 
+    printf("<TEST>::Here issue_block2core 01.\n");
     issue_block2core();
     decrement_kernel_latency();
 

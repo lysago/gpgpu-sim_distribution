@@ -1736,6 +1736,8 @@ void ptx_thread_info::ptx_exec_inst(warp_inst_t &inst, unsigned lane_id) {
     }
     int inst_opcode = pI->get_opcode();
 
+    // printf("<TEST>  uid:%d  tid:[%d,%d,%d]  op:%d\n", m_uid, m_tid.x, m_tid.y, m_tid.z , inst_opcode);
+
     if (skip) {
       inst.set_not_active(lane_id);
     } else {
