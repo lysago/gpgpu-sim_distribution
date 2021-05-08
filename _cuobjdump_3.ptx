@@ -6,10 +6,10 @@
 
 
 .version 3.0
-.target sm_20
+.target sm_30
 .address_size 64
 
-.file	1 "/tmp/tmpxft_00005e20_00000000-11_clock.compute_20.cpp3.i"
+.file	1 "/tmp/tmpxft_00005e20_00000000-19_clock.compute_30.cpp3.i"
 .file	2 "clock_kernel.cu"
 .file	3 "/usr/local/cuda-4.2/cuda/nvvm/ci_include.h"
 .extern .shared .align 4 .b8 shared[];

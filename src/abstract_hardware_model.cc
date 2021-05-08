@@ -1485,10 +1485,8 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
   unsigned top_wcnt = m_stack[now_tos_pos].m_wcnt;
 
   assert(top_wcnt > 0);
-  // printf("<TEST>::\t(simt_stack)\t[update]\twarp %d, recvg_pc %d \n", m_warp_id, recvg_pc);
-  // print_test(top_active_mask);
 
-  // 找到分支信息
+  // 分支信息
   const address_type null_pc = -1;
   bool warp_diverged = false;
   address_type new_recvg_pc = null_pc;
@@ -1574,22 +1572,31 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
   }
   assert(m_stack.size() > 0);
 
+  // 对于null_pc与分支指令
   m_stack[now_tos_pos].m_wcnt--;
   // 如果最后一个warp到达，则更新栈顶指针tos并压缩新项的warp
   if(m_stack[now_tos_pos].m_wcnt == 0){
-    // 更新栈顶的pc信息和wct信息
-    m_stack[now_tos_pos].m_pc = new_recvg_pc;
-    m_stack[now_tos_pos].m_branch_div_cycle =
+    if(num_divergent_paths == 0){
+      m_stack.pop_back();
+      m_tos_pos = m_stack.size() - 1;
+      m_stack.back().m_wcnt = recvgWarp(simt_stacks, thread_done, now_inst_op,
+                                           now_inst_size, now_inst_pc );
+    }
+    else{
+      // 更新栈顶的pc信息和wct信息
+      m_stack[now_tos_pos].m_pc = new_recvg_pc;
+      m_stack[now_tos_pos].m_branch_div_cycle =
         m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle;
-
-    m_tos_pos = m_stack.size() - 1;
-    m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
-                                           now_inst_size, now_inst_pc );  // 更新对应的simt栈
-    m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+      m_tos_pos = m_stack.size() - 1;
+      m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
+                                            now_inst_size, now_inst_pc );  // 更新对应的simt栈
+      m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+    }
     return 1;
   }
   // 更新ptx文件状态
-  m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+  if(num_divergent_paths != 0)
+    m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
   return 2;
 }
 

@@ -12,11 +12,98 @@
    3               0               0        3        0      3     .symtab
    4               0               0        3        0      0     
    5               0               0        3        0      0     
-   6               0               8        3        0      4     .text._Z6kernelv
-   7               0               0       12       10      4     _Z6kernelv
+   6               0             576        3        0      4     .text._Z14timedReductionPKfPfPl
+   7               0               0        3        0      6     .nv.info._Z14timedReductionPKfPfPl
+   8               0               0        3        0      7     .nv.info
+   9               0               0        3        0      5     .nv.constant0._Z14timedReductionPKfPfPl
+  10               0             576       12       10      4     _Z14timedReductionPKfPfPl
 
 
-.text._Z6kernelv	PROGBITS
-bar = 0	reg = 0	lmem=0	smem=0
-0xf0000001  0xe0000001  
+.nv.constant0._Z14timedReductionPKfPfPl	PROGBITS
+0x00000000  0x00000000  0x00000000  0x00000000  0x00000000  
+0x00000000  0x00000000  0x00000000  0x00000000  
+0x00000000  0x00000000  0x00000000  0x00000000  
+0x00000000  
+
+
+.text._Z14timedReductionPKfPfPl	PROGBITS
+bar = 1	reg = 10	lmem=0	smem=0
+0x00005de4  0x28004404  0x84001c04  0x2c000000  
+0x80000007  0x60000001  0xfc03dc23  0x1a8e0000  
+0xfc01dc23  0x190e0000  0x000005f4  0x40000000  
+0x40009c04  0x2c000001  0x04219e03  0x6000c000  
+0x94009c04  0x2c000000  0xc000dde4  0x28004000  
+0x7c61dc23  0x7000c004  0x20211ca3  0x2007c000  
+0x20209ce3  0x5000c000  0xd0215c43  0x48004000  
+0x00419cb5  0x94000000  0x8400dc04  0x2c000000  
+0x08309e03  0x6000c000  0x20315c03  0x48004000  
+0x1030dce3  0x5000c000  0x80211c03  0x48014000  
+0x08519e03  0x6000c000  0x1051dc43  0x5000c000  
+0x90315c43  0x48004000  0x80621c03  0x48014000  
+0x2000dde4  0x28004000  0x00415c85  0x84000000  
+0x90725c43  0x48004000  0x0433dc23  0x188ec000  
+0x00811c85  0x84000000  0x00215c85  0xc9000000  
+0x00611c85  0xc9000000  0x400005e7  0x40000002  
+0xfc1fdc03  0x207e0000  0x40000007  0x60000001  
+0xffffdc04  0x50ee0000  0x0c03dc23  0x1b0e0000  
+0x000005f4  0x40000000  0x00311c03  0x48000000  
+0x08415e03  0x6000c000  0x00211c85  0xc1000000  
+0x00515c85  0xc1000000  0x1053dc00  0x270e0000  
+0x00216485  0xc9000000  0x00001df4  0x40000000  
+0x7c311c03  0x5800c000  0x0433dc23  0x1a0ec000  
+0x10311c03  0x48000000  0x04411c23  0x5800c000  
+0x1000dde4  0x28000000  0xc00005e7  0x4003fffd  
+0xe000a1e7  0x40000000  0x94000004  0x2c000000  
+0xa00081e4  0x28004000  0x100100a3  0x2005c000  
+0x100080e3  0x5000c000  0x03f00085  0xc1000000  
+0xb0214043  0x48004000  0x00400085  0x94000000  
+0xfc1fdc03  0x207e0000  0xffffdc04  0x50ee0000  
+0x000021e7  0x80000000  0x40001c04  0x2c000001  
+0x04011e03  0x6000c000  0x94001c04  0x2c000000  
+0xc0009de4  0x28004000  0x7c415c23  0x7000c004  
+0x50001c03  0x48004000  0x20009c03  0x2005c000  
+0x20001c43  0x5000c000  0xd000dc43  0x48004000  
+0x00211ca5  0x94000000  0x00001de7  0x80000000  
+
+
+
+.nv.info._Z14timedReductionPKfPfPl	PROGBITS
+	<0x1>
+	Attribute:	EIATTR_PARAM_CBANK
+	Format:	EIFMT_SVAL
+	Value:	0x9 0x180020 
+	<0x2>
+	Attribute:	EIATTR_CBANK_PARAM_SIZE
+	Format:	EIFMT_HVAL
+	Value:	0x18
+	<0x3>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x2	Offset  : 0x10	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x4>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x1	Offset  : 0x8	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x5>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x0	Offset  : 0x0	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : CBANK	
+	<0x6>
+	Attribute:	EIATTR_SYNC_STACK
+	Format:	EIFMT_SVAL
+	Value:	0x30024 0x2 
+
+
+.nv.info	PROGBITS
+	<0x1>
+	Attribute:	EIATTR_MIN_STACK_SIZE
+	Format:	EIFMT_SVAL
+	Value:	function: _Z14timedReductionPKfPfPl(0xa)	min stack size: 0x0
+	<0x2>
+	Attribute:	EIATTR_FRAME_SIZE
+	Format:	EIFMT_SVAL
+	Value:	function: _Z14timedReductionPKfPfPl(0xa)	frame size: 0x0
 

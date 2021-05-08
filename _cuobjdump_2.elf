@@ -1,0 +1,87 @@
+
+
+.section .strtab	STRTAB
+
+.section .shstrtab	STRTAB
+
+.section .symtab	SYMTAB
+ index           value           size      info    other  shndx    name  
+   0               0               0        0        0      0     (null)
+   1               0               0        3        0      1     .shstrtab
+   2               0               0        3        0      2     .strtab
+   3               0               0        3        0      3     .symtab
+   4               0               0        3        0      0     
+   5               0               0        3        0      0     
+   6               0             448        3        0      4     .text._Z14timedReductionPKfPfPl
+   7               0               0        3        0      6     .nv.info._Z14timedReductionPKfPfPl
+   8               0               0        3        0      7     .nv.shared._Z14timedReductionPKfPfPl
+   9               0               0        3        0      5     .nv.constant1._Z14timedReductionPKfPfPl
+  10               0               0       12       10      4     _Z14timedReductionPKfPfPl
+
+
+.nv.constant1._Z14timedReductionPKfPfPl	PROGBITS
+0x00000001  
+
+
+.nv.shared._Z14timedReductionPKfPfPl	NOBITS
+   No data to be dumped. 
+
+
+.text._Z14timedReductionPKfPfPl	PROGBITS
+bar = 1	reg = 6	lmem=0	smem=48
+0xa0000009  0x040007d0  0xa000b003  0x00000000  
+0x307c05fd  0x6c0087c8  0x1000b003  0x00001680  
+0x00000001  0x60004780  0x30010001  0xc4100780  
+0xa0004c05  0x04200780  0x3003020d  0xc4100780  
+0x301f0005  0xec100780  0x2000d00d  0x0420c780  
+0xd00e0601  0xa0800780  0xa0004205  0x042007d2  
+0x20000411  0x04004780  0x30020401  0xc4100780  
+0x3002080d  0xc4100780  0x2000c801  0x04200780  
+0x00020405  0xc0000780  0x2000c815  0x0420c780  
+0xd00e000d  0x80c00780  0xd00e0a01  0x80c00780  
+0x04001801  0xe420c780  0x00020809  0xc0000780  
+0x08001801  0xe4200780  0x10028003  0x00001180  
+0x861ffe03  0x00000000  0x300203fd  0x6c00c7d8  
+0xa0022003  0x00000000  0x10022003  0x00001280  
+0x20000201  0x04008780  0x00020009  0xc0000780  
+0x1800d801  0x0423c780  0xb400d9fd  0x602107d8  
+0x1800d801  0x0423c780  0x04001801  0xe4201680  
+0x301f0201  0xec100782  0xd0800001  0x04400780  
+0x20000001  0x04004780  0x30010005  0xec100780  
+0x307c03fd  0x6c0107d8  0x10018003  0x00001280  
+0xa0004c01  0x04200680  0x30020005  0xc4100680  
+0x1000d801  0x0423c680  0x2000cc05  0x04204680  
+0xd00e0201  0xa0c00680  0x861ffe03  0x00000000  
+0x30000003  0x00000100  0x00000001  0x60004780  
+0x30010001  0xc4100780  0xa0004c05  0x04200780  
+0xa0004809  0x04200780  0x20000205  0x04008780  
+0x30030209  0xc4100780  0x301f0005  0xec100780  
+0x2000d009  0x04208780  0xd00e0401  0xa0800781  
+
+
+
+.nv.info._Z14timedReductionPKfPfPl	PROGBITS
+	<0x1>
+	Attribute:	EIATTR_SMEM_PARAM_SIZE
+	Format:	EIFMT_HVAL
+	Value:	0x18
+	<0x2>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x2	Offset  : 0x10	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : SMEM	
+	<0x3>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x1	Offset  : 0x8	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : SMEM	
+	<0x4>
+	Attribute:	EIATTR_KPARAM_INFO
+	Format:	EIFMT_SVAL
+	Value:	Index : 0x0	Ordinal : 0x0	Offset  : 0x0	Size    : 0x8
+		Pointee's logAlignment : 0x0	Space : 0x0	cbank : 0x1f	Parameter Space : SMEM	
+	<0x5>
+	Attribute:	EIATTR_SYNC_STACK
+	Format:	EIFMT_SVAL
+	Value:	0x30018 0x2 
+
