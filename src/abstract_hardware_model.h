@@ -463,6 +463,9 @@ class tbc_stack {
   int get_pos(address_type next_pc);
   void print_all_test();
   int get_active_wcnt(const tbc_mask_t &active_mask);
+  thread_vector_t get_real_thread(unsigned warpId);
+  int getLaneWarp(tbc_mask_t active_mask);
+  int countLaneWarp(tbc_mask_t now_tbc_mask);
 
   int compactWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
       unsigned now_inst_size, address_type now_inst_pc);
@@ -478,6 +481,7 @@ class tbc_stack {
 
   std::map<address_type, simt_mask_t> getDivPaths(simt_mask_t &thread_done,
                                                 addr_vector_t &next_pc, simt_mask_t &top_active_mask);
+ std::vector<std::vector<int> >& get_lane_warp(){ return m_stack.back().m_lane_warp; }
                                           
 
  protected:
@@ -489,6 +493,7 @@ class tbc_stack {
     address_type m_pc;
     unsigned int m_calldepth;
     tbc_mask_t m_active_mask;
+    std::vector<std::vector<int> > m_lane_warp;
     address_type m_recvg_pc;
     unsigned long long m_branch_div_cycle;
     stack_entry_type m_type;
@@ -497,6 +502,7 @@ class tbc_stack {
         : m_pc(-1),
           m_calldepth(0),
           m_active_mask(),
+          m_lane_warp(),
           m_recvg_pc(-1),
           m_branch_div_cycle(0),
           m_type(STACK_ENTRY_TYPE_NORMAL),
@@ -1325,6 +1331,8 @@ class core_t {
     assert(m_warp_count * m_warp_size > 0);
     m_thread = (ptx_thread_info **)calloc(m_warp_count * m_warp_size,
                                           sizeof(ptx_thread_info *));
+    m_real_thread = (ptx_thread_info **)calloc(m_warp_count * m_warp_size,
+                                          sizeof(ptx_thread_info *));
     initilizeSIMTStack(m_warp_count, m_warp_size);
     initilizeTBCStack(m_warp_count, m_warp_size);
 
@@ -1335,7 +1343,10 @@ class core_t {
     }
     m_warp_mask.reset();
   }
-  virtual ~core_t() { free(m_thread); }
+  virtual ~core_t() { 
+    free(m_thread); 
+    free(m_real_thread);
+  }
   virtual void warp_exit(unsigned warp_id) = 0;
   virtual bool warp_waiting_at_barrier(unsigned warp_id) const = 0;
   virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t,
@@ -1377,12 +1388,15 @@ class core_t {
     return reduction_storage[ctaid][barid];
   }
 
+  void update_thread_pos(std::vector<std::vector<int> > &lane_warp);
+
  protected:
   class gpgpu_sim *m_gpu;
   kernel_info_t *m_kernel;
   simt_stack **m_simt_stack;  // pdom based reconvergence context for each warp
   tbc_stack *m_tbc_stack;  // pdom based reconvergence context for each warp
   class ptx_thread_info **m_thread;
+  class ptx_thread_info **m_real_thread;
   unsigned m_warp_size;
   unsigned m_warp_count;
   unsigned reduction_storage[MAX_CTA_PER_SHADER][MAX_BARRIERS_PER_CTA];

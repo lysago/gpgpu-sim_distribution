@@ -1642,6 +1642,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
         kernel, &m_thread[i], m_sid, i, cta_size - (i - start_thread),
         m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
         m_cluster->get_gpu());
+    m_real_thread[i] = m_thread[i];
     m_threadState[i].m_active = true;
     // load thread local memory and register file
     if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&

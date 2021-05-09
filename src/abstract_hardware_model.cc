@@ -1104,7 +1104,7 @@ void simt_stack::update(simt_mask_t thread_done, simt_mask_t next_active_mask,
   address_type top_pc =
       m_stack.back().m_pc;  // the pc of the instruction just executed
   stack_entry_type top_type = m_stack.back().m_type;
-  assert(top_pc == now_inst_pc);
+  // assert(top_pc == now_inst_pc); // 由于进行了重组，top的inst不一定是这次的了
   assert(top_active_mask.any());
 
   // printf("<TEST>::\t(simt_stack)\t[update]\twarp %d, recvg_pc %d \n", m_warp_id, recvg_pc);
@@ -1169,10 +1169,11 @@ bool core_t::ptx_thread_done(unsigned hw_thread_id) const {
           m_thread[hw_thread_id]->is_done());
 }
 
-thread_vector_t get_real_thread(unsigned warpId){
+// 对于每个warp的threads
+thread_vector_t tbc_stack::get_real_thread(unsigned warpId){
   thread_vector_t now_thread;
   for(int i = 0; i < MAX_WARP_SIZE; ++i){
-    now_thread.push_back(warpId*MAX_WARP_SIZE + i);
+    now_thread.push_back(m_stack[m_tos_pos].m_lane_warp[i][warpId]);
   }
   return now_thread;
 }
@@ -1183,6 +1184,16 @@ address_type get_pc(simt_mask_t &thread_done, simt_mask_t simt_stack, addr_vecto
       return next_pc[i];
   }
   return (unsigned)-1;
+}
+
+void core_t::update_thread_pos(std::vector<std::vector<int> > &lane_warp){
+  for(int i = 0; i < m_warp_size; ++i){    // lane id
+    int id = i;
+    for(int j = 0; j < m_warp_count; ++j){  // old warp id
+      m_thread[id] = m_real_thread[lane_warp[i][j]];
+      id += m_warp_size;
+    }
+  }
 }
 
 void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
@@ -1205,7 +1216,7 @@ void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
   }
   printf("\n");
   // TBC栈内存储分支指令相关内容,如果该指令为分支，则进行warp压缩操作
-  thread_vector_t real_thread = get_real_thread(warpId);
+  thread_vector_t real_thread = m_tbc_stack->get_real_thread(warpId); // tos旧结果（该warp内thread），用于active mask之间的转换
   int compacted = m_tbc_stack->update(thread_done, next_pc, inst->reconvergence_pc, inst->op, inst->isize, inst->pc,
                       real_thread ,warpId, m_simt_stack);
   printf("compacted %d\n", compacted);
@@ -1216,10 +1227,17 @@ void core_t::updateSIMTStack(unsigned warpId, warp_inst_t *inst) {
     m_simt_stack[warpId]->update(thread_done, m_simt_stack[warpId]->get_active_mask(),
                                 next_pc_one, inst->reconvergence_pc,
                                 inst->op, inst->isize, inst->pc);                    
-  }else if(compacted == 2){
-    m_warp_mask.set(warpId);
-  }else if(compacted == 1){
+  }else if(compacted == -2){ // 最后一个null_pc
     m_warp_mask.reset();
+  }else if(compacted == -3){ // 非最后一个，需要设置以同步
+    m_warp_mask.set(warpId);
+  }else if(compacted > 0){ // 最后一个，可重置以issue warp
+    // 毕竟为分支指令的div或recvg，所以需要对thread进行重置
+    m_warp_mask.reset();
+    for(int i = compacted; i < MAX_WARP_COUNT; ++i){
+      m_warp_mask.set(i);
+    }
+    update_thread_pos(m_tbc_stack->get_lane_warp());
   }
   printf("  mask:%c\n", m_warp_mask.test(warpId)?'1':'0');
 }
@@ -1292,6 +1310,7 @@ void tbc_stack::launch(address_type start_pc, const tbc_mask_t &active_mask) {
   new_stack_entry.m_wcnt = get_active_wcnt(active_mask);
   m_stack.push_back(new_stack_entry);
   m_tos_pos = 0;
+  m_stack.back().m_wcnt = getLaneWarp(active_mask);
 }
 
 void tbc_stack::stack_push(address_type next_pc, tbc_mask_t active_mask, unsigned long long branch_div_cycle,
@@ -1397,14 +1416,72 @@ std::map<address_type, simt_mask_t> tbc_stack::getDivPaths(simt_mask_t &thread_d
   return divergent_paths;
 }
 
+// 对于每个lane的threads
+int tbc_stack::getLaneWarp(tbc_mask_t active_mask){
+  assert(m_stack.back().m_lane_warp.size() == 0);
+  int count = 0;
+  // active thread
+  for(int i = 0; i < m_warp_size; ++i){    // lane id
+    std::vector<int> lane_threads;
+    int id = i;
+    for(int j = 0; j < m_warp_count; ++j){  // old warp id
+      if(active_mask.test(id)){
+        lane_threads.push_back(id);
+      }
+      id += m_warp_size;
+    }
+    count = std::max(count, (int)(lane_threads.size()));
+    m_stack.back().m_lane_warp.push_back(lane_threads);
+  }
+  // unactive thread
+  for(int i = 0; i < m_warp_size; ++i){    // lane id
+    int id = i;
+    for(int j = 0; j < m_warp_count; ++j){  // old warp id
+      if(!active_mask.test(id)){
+        m_stack.back().m_lane_warp[i].push_back(id);
+      }
+      id += m_warp_size;
+    }
+  }
+  return count;
+}
+
+// 对于每个lane的有效threads数，即总warp数
+int tbc_stack::countLaneWarp(tbc_mask_t active_mask){
+  assert(m_stack.back().m_lane_warp.size() == m_warp_size);
+  int count = 0;
+  // active thread
+  for(int i = 0; i < m_warp_size; ++i){    // lane id
+    int id = i, now = 0;
+    for(int j = 0; j < m_warp_count; ++j){  // old warp id
+      if(active_mask.test(id)){
+        now++;
+      }
+      id += m_warp_size;
+    }
+    count = std::max(count, now);
+  }
+  return count;
+}
+
+// 例：1 2 3 4 5 6 7 8
+// d1：1 0 3 0 0 6 0 8 -> 1 6 3 8 0 0 0 0
+// d2: 0 2 0 4 5 0 7 0 -> 5 2 7 4 0 0 0 0
+
 // 根据栈顶active_mask信息更新simt栈
+// 一定是在栈底进行的
 int tbc_stack::compactWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_type now_inst_op,
                            unsigned now_inst_size, address_type now_inst_pc){
   tbc_mask_t now_tbc_mask = m_stack.back().m_active_mask;
   address_type now_next_pc = m_stack.back().m_pc;
   address_type now_recvg_pc = m_stack.back().m_recvg_pc;
-  int count = 0;
-  for(int i = 0; i < m_warp_count; ++i){
+  
+  // 获得thread原warp->新warp信息
+  int count = getLaneWarp(now_tbc_mask);
+  printf("count %d\n", count);
+
+  // 前count个warp
+  for(int i = 0; i < count; ++i){
     thread_vector_t now_thread = get_real_thread(i);
     simt_mask_t now_simt_mask = tbc_mask_convert_simt(now_thread, now_tbc_mask);
     /*
@@ -1414,11 +1491,12 @@ int tbc_stack::compactWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, o
     }
     printf("\n");
     */
-    if(now_simt_mask.none()) {
-      continue;
-    }
-    count++;
+    assert(now_simt_mask.any());
+    
     simt_stacks[i]->update(thread_done, now_simt_mask, now_next_pc, now_recvg_pc,now_inst_op,now_inst_size,now_inst_pc);
+  }
+  for(int i = count; i < m_warp_count; ++i){
+
   }
   return count;
 }
@@ -1428,12 +1506,17 @@ int tbc_stack::recvgWarp(simt_stack **simt_stacks, simt_mask_t &thread_done, op_
   tbc_mask_t now_tbc_mask = m_stack.back().m_active_mask;
   address_type now_next_pc = m_stack.back().m_pc;
   address_type now_recvg_pc = m_stack.back().m_recvg_pc;
-  int count = 0;
-  for(int i = 0; i < m_warp_count; ++i){
+  
+  // 获得thread原warp->新warp信息
+  int count = countLaneWarp(now_tbc_mask);
+  printf("count %d\n", count);
+
+  // 前count个warp
+  for(int i = 0; i < count; ++i){
     thread_vector_t now_thread = get_real_thread(i);
     simt_mask_t now_simt_mask = tbc_mask_convert_simt(now_thread, now_tbc_mask);
-    if(now_simt_mask.none()) continue;
-    count++;
+    assert(now_simt_mask.any());
+    
     simt_stacks[i]->update(thread_done, now_simt_mask, now_next_pc, now_recvg_pc,now_inst_op,now_inst_size,now_inst_pc);
   }
   return count;
@@ -1536,27 +1619,27 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
           m_stack.pop_back();
         }
         m_tos_pos = m_stack.size() - 1;
-        if(m_stack.back().m_pc == top_recvg_pc){
+        if(m_stack.back().m_pc == top_recvg_pc){ // 下一个栈顶是重汇聚指令
           printf("!!recvg:  next is recvg\n");
           m_stack.back().m_wcnt = recvgWarp(simt_stacks, thread_done, now_inst_op,
                                            now_inst_size, now_inst_pc ); // 将warp恢复为分支前的内容，其中包括修改SIMT栈
-        }else{
+        }else{ // 下一个栈顶是另一个分支
           printf("!!recvg:  next is div\n");
           m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
                                            now_inst_size, now_inst_pc );
         }
-        return 1;
+        return m_stack.back().m_wcnt;
       }
-      return 2;
+      return -3;
     }
 
-    if(!warp_diverged) return -1;
+    if(!warp_diverged && now_inst_op != BRANCH_OP) return -1;
 
     // discard the new entry if its PC matches with reconvergence PC
     // 指令分支并且为no选项，不push新内容
     // [div_a][div_b][rec_b][rec_a]
     // [div_a]              [rec_a]
-    if (warp_diverged && tmp_next_pc == new_recvg_pc) continue;
+    if (tmp_next_pc == new_recvg_pc) continue;
 
     // 更新TBC栈的新项
     int new_pos = get_pos(tmp_next_pc);
@@ -1571,6 +1654,7 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
     }
   }
   assert(m_stack.size() > 0);
+  assert(num_divergent_paths == 0 || now_inst_op == BRANCH_OP);
 
   // 对于null_pc与分支指令
   m_stack[now_tos_pos].m_wcnt--;
@@ -1579,8 +1663,16 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
     if(num_divergent_paths == 0){
       m_stack.pop_back();
       m_tos_pos = m_stack.size() - 1;
-      m_stack.back().m_wcnt = recvgWarp(simt_stacks, thread_done, now_inst_op,
-                                           now_inst_size, now_inst_pc );
+      if(m_tos_pos != -1){
+        if(m_stack.back().m_lane_warp.empty()){
+          m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
+                                              now_inst_size, now_inst_pc );
+        }else{
+          m_stack.back().m_wcnt = recvgWarp(simt_stacks, thread_done, now_inst_op,
+                                              now_inst_size, now_inst_pc );
+        }
+      }
+      return -2;
     }
     else{
       // 更新栈顶的pc信息和wct信息
@@ -1591,13 +1683,13 @@ int tbc_stack::update(simt_mask_t &thread_done, addr_vector_t &next_pc,
       m_stack.back().m_wcnt = compactWarp(simt_stacks, thread_done, now_inst_op,
                                             now_inst_size, now_inst_pc );  // 更新对应的simt栈
       m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
+      return m_stack.back().m_wcnt;
     }
-    return 1;
   }
   // 更新ptx文件状态
   if(num_divergent_paths != 0)
     m_gpu->gpgpu_ctx->stats->ptx_file_line_stats_add_warp_divergence(top_pc, 1);
-  return 2;
+  return -3;
 }
 
 void core_t::initilizeTBCStack(unsigned warp_count, unsigned warp_size) {

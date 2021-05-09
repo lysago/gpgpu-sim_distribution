@@ -1,4 +1,48 @@
 
+Fatbin elf code:
+================
+arch = sm_10
+code version = [1,2]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = hello.cu
+
+.section .strtab	STRTAB
+
+.section .shstrtab	STRTAB
+
+.section .symtab	SYMTAB
+ index           value           size      info    other  shndx    name  
+   0               0               0        0        0      0     (null)
+   1               0               0        3        0      1     .shstrtab
+   2               0               0        3        0      2     .strtab
+   3               0               0        3        0      3     .symtab
+   4               0               0        3        0      0     
+   5               0               0        3        0      0     
+   6               0               8        3        0      4     .text._Z6kernelv
+   7               0               0       12       10      4     _Z6kernelv
+
+
+.text._Z6kernelv	PROGBITS
+bar = 0	reg = 0	lmem=0	smem=0
+0xf0000001  0xe0000001  
+
+	code for sm_10
+		Function : _Z6kernelv
+	/*0000*/     /*0xf0000001e0000001*/ 	NOP;
+		...........................
+
+
+
+Fatbin ptx code:
+================
+arch = sm_10
+code version = [1,4]
+producer = cuda
+host = linux
+compile_size = 64bit
+identifier = hello.cu
 	.version 1.4
 .target sm_10, map_f64_to_f32
 
